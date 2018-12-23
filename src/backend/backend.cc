@@ -1,5 +1,5 @@
 #include "backend.hpp"
-
+#include <stdlib.h>
 
 device_c::device_c(){
     this->type = DEVICE_C;
@@ -8,19 +8,38 @@ device_c::~device_c() {}
 tensor_t * device_c::tensor_create(int * dims, int n_dim, 
                     tensor_data_type data_type, tensor_layout layout)
 {
-
+    int elem = 1;
+    for(int i=0;i<n_dim;i++)
+        elem *= dims[i];
+    int total_byte = elem * data_type_unit(data_type);
+    void * ptr = malloc(total_byte);
+    
+    tensor_t * tensor = new tensor_t;
+    tensor->dim[0] = dims[0];
+    tensor->dim[1] = n_dim>1?dims[1]:0;
+    tensor->dim[2] = n_dim>2?dims[2]:0;
+    tensor->dim[3] = n_dim>3?dims[3]:0;
+    tensor->n_dims = n_dim;
+    tensor->data_type = data_type;
+    tensor->layout = layout;
+    tensor->desc = nullptr;
+    tensor->mem = ptr;
+    return tensor;
 }
-void device_c::tensor_copy(void *src, void *dest, int bytes, tensor_copy_kind copy_kind)
+void device_c::tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind)
 {
-
+    (void)copy_kind;
+    tensor_t * t_dest = (tensor_t*)dest;
+    tensor_t * t_src = (tensor_t*)src;
+    memcpy(t_dest->mem, t_src->mem, bytes);
 }
 void device_c::tensor_destroy(tensor_t * tensor)
 {
-
+    free(tensor->mem);
 }
 
 device_base  * device_create(device_type type, int dev_id){
-    device_base * handle;
+    device_base * handle=nullptr;
 #ifdef WITH_MIOPEN
     if(type == DEVICE_HIP){
         handle = new device_hip(dev_id);
@@ -34,8 +53,8 @@ device_base  * device_create(device_type type, int dev_id){
         return handle;
     }
 #endif
-
-    handle = new device_c;
+    if(type == DEVICE_C)
+        handle = new device_c;
 
     return handle;
 }

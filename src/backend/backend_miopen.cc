@@ -102,14 +102,16 @@ tensor_t * device_hip::tensor_create(int * dims, int n_dim,
     return tensor;
 }
 
-void device_hip::tensor_copy(void *src, void *dest, int bytes, tensor_copy_kind copy_kind){
+void device_hip::tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind){
     if(copy_kind == TENSOR_COPY_D2H){
         tensor_t * t = (tensor_t *)src;
         CHECK_HIP(hipMemcpyDtoH(dest, t->mem, bytes));
+        hipDeviceSynchronize();
     }
     else if(copy_kind == TENSOR_COPY_H2D){
         tensor_t * t = (tensor_t *)dest;
         CHECK_HIP(hipMemcpyHtoD(t->mem, src, bytes));
+        hipDeviceSynchronize();
     }
     else if (copy_kind == TENSOR_COPY_D2D){
 

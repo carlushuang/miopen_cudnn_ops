@@ -13,6 +13,8 @@ list(APPEND backend_src
             src/backend/backend.cc
             src/backend/operator.cc 
             src/backend/op_pooling.cc )
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 ")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g ")
 
 if(WITH_MIOPEN)
     message(STATUS "compile on miopen, amd platform")
@@ -51,4 +53,4 @@ function(op_exe TARGET)
     target_link_libraries(${TARGET} backend_lib ${op_exe_DEPS})
 endfunction()
 
-op_exe(test_pooling SRCS src/executable/test_pooling.cc)
+op_exe(op_driver SRCS src/executable/op_driver.cc)

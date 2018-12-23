@@ -53,7 +53,8 @@ enum tensor_layout{
 enum tensor_copy_kind{
     TENSOR_COPY_D2H,
     TENSOR_COPY_H2D,
-    TENSOR_COPY_D2D
+    TENSOR_COPY_D2D,
+    TENSOR_COPY_ANY
 };
 
 #define MAX_TENSOR_DIM 4
@@ -105,7 +106,7 @@ public:
 
     virtual tensor_t * tensor_create(int * dims, int n_dim, 
                     tensor_data_type data_type, tensor_layout layout)=0;
-    virtual void tensor_copy(void *src, void *dest, int bytes, tensor_copy_kind copy_kind)=0;
+    virtual void tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind)=0;
     virtual void tensor_destroy(tensor_t * tensor)=0;
 
     virtual pooling_desc_t * pooling_desc_create(
@@ -125,7 +126,7 @@ public:
     ~device_hip();
     virtual tensor_t * tensor_create(int * dims, int n_dim, 
                     tensor_data_type data_type, tensor_layout layout);
-    virtual void tensor_copy(void *src, void *dest, int bytes, tensor_copy_kind copy_kind);
+    virtual void tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind);
     virtual void tensor_destroy(tensor_t * tensor);
 
     virtual pooling_desc_t * pooling_desc_create(
@@ -141,7 +142,7 @@ public:
     ~device_c();
     virtual tensor_t * tensor_create(int * dims, int n_dim, 
                     tensor_data_type data_type, tensor_layout layout);
-    virtual void tensor_copy(void *src, void *dest, int bytes, tensor_copy_kind copy_kind);
+    virtual void tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind);
     virtual void tensor_destroy(tensor_t * tensor);
 };
 
@@ -151,11 +152,13 @@ device_base  * device_create(device_type type, int dev_id);
 void           device_destroy(device_base *handle);
 
 #define ABS(v) ( (v)>0 ? (v):-(v))
+#define MIN(a,b) ((a)<(b)?(a):(b))
+#define MAX(a,b) ((a)>(b)?(a):(b))
 #define MAX_ERROR_PRINT 10
 static inline int util_compare_data(void * m1, void * m2, 
         int elem, tensor_data_type type, float delta)
 {
-    float *f1, f2;
+    float *f1, *f2;
     int error_cnt = 0;
     if(type == TENSOR_DT_FLOAT){
         f1 = (float*)m1;
@@ -163,7 +166,7 @@ static inline int util_compare_data(void * m1, void * m2,
         for(int i=0;i<elem;i++){
             float d = f1[i]-f2[i];
             d = ABS(d);
-            if(f>delta){
+            if(d>delta){
                 if(error_cnt < MAX_ERROR_PRINT)
                     std::cout<<"compare fail, with "<<f1[i]<<" -- "<<f2[i]<<
                         " each, delta:"<< d <<", idx:"<<i<<std::endl;;
