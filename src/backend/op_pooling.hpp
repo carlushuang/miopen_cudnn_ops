@@ -41,5 +41,19 @@ public:
     int backward_prepared;
 };
 #endif
+#ifdef WITH_CUDNN
+class op_pooling_cudnn : public op_pooling{
+public:
+    op_pooling_cudnn(void * desc);
+    ~op_pooling_cudnn();
+    virtual void forward(tensor_t * input, tensor_t * output);
+    virtual void backward(tensor_t * input, tensor_t * output);
+
+    tensor_t * workspace_tensor;
+
+    int forward_prepared;
+    int backward_prepared;
+};
+#endif
 
 #endif

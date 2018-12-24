@@ -13,7 +13,7 @@
 #ifdef WITH_CUDNN
 #define DISPATCH_OP(op_type, op_name)           \
     case op_type:                               \
-        if(device->type == DEVICE_HIP)          \
+        if(device->type == DEVICE_CUDA)         \
             op = new op_name ## _cudnn(desc);   \
         else                                    \
             op = new op_name(desc);             \

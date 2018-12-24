@@ -11,7 +11,13 @@
 #include <unistd.h>
 
 static device_base * determin_device(){
-    std::string backend = "HIP";
+    std::string backend;
+#ifdef WITH_MIOPEN
+    backend = "HIP";
+#endif
+#ifdef WITH_CUDNN
+    backend = "CUDA";
+#endif
     int device_id = 0;
     char * var = getenv("BACKEND");
     if(var && !strcmp(var, "HIP"))
@@ -105,6 +111,14 @@ public:
                 <<std::endl;
         }
     }
+    void dump_parsed(){
+        std::cout<<"using args: "<<name<<" ";
+        for(auto & it : arg_pair){
+            arg_store a = it.second;
+            std::cout<<" "<<it.first<<" "<<(a.value==ARG_VALUE_INIT?a.default_value:a.value);
+        }
+        std::cout<<std::endl;
+    }
 private:
     std::string name;
     std::unordered_map<std::string, arg_store> arg_pair;
@@ -126,8 +140,8 @@ static int pooling_driver(int argc, char ** argv){
                 "0-MAX 1-MAX_DETERMINISTIC "
                 "2-AVG_EXCLUSIVE 3-AVG_INCLUSIVE ", 0);
     parser.parse(argc, argv);
-
     parser.usage();
+    parser.dump_parsed();
 
     int ksize = parser.get_arg("k");
     int psize = parser.get_arg("p");
@@ -170,7 +184,6 @@ static int pooling_driver(int argc, char ** argv){
     gpu_dev->tensor_copy(t_in, t_in_c->mem, t_in_c->bytes(), TENSOR_COPY_H2D);
 
     op_pooling->forward(t_in, t_out);
-
     //validation
     op_pooling_c->forward(t_in_c, t_out_c);
 

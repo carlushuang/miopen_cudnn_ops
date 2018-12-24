@@ -50,15 +50,6 @@ device_hip::~device_hip(){
     miopenDestroy(this->handle);
 }
 
-static miopenDataType_t to_miopen_data_type(tensor_data_type data_type){
-    if(data_type == TENSOR_DT_FLOAT)
-        return miopenFloat;
-    if(data_type == TENSOR_DT_HALF)
-        return miopenHalf;
-    assert(0 && "unsupported data type in miopen");
-    return miopenFloat; // not reached
-}
-
 tensor_t * device_hip::tensor_create(int * dims, int n_dim, 
         tensor_data_type data_type, tensor_layout layout){
 
@@ -122,23 +113,6 @@ void device_hip::tensor_destroy(tensor_t * tensor){
     if(tensor->desc)
         CHECK_MIO(miopenDestroyTensorDescriptor((miopenTensorDescriptor_t)tensor->desc));
     delete tensor;
-}
-
-static miopenPoolingMode_t to_miopen_pooling_mode(pooling_mode mode){
-    switch (mode) {
-        case POOLING_MAX:
-            return miopenPoolingMax;
-        case POOLING_MAX_DETERMINISTIC:
-            return miopenPoolingMax;
-        case POOLING_AVG_EXCLUSIVE:
-            std::cerr<<"MIOpen currently implementation only support inclusive avg pooling, "
-                    <<"using exclusive may result in calculation fail"<<std::endl;
-            return miopenPoolingAverage;
-        case POOLING_AVG_INCLUSIVE:
-            return miopenPoolingAverage;
-        default:
-            assert(0 && "unsupported pooling mode");
-    }
 }
 
 pooling_desc_t * device_hip::pooling_desc_create(int * kernel, int * stride, int * padding, int n_dims,

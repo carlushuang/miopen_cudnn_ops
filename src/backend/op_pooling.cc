@@ -1,5 +1,6 @@
 #include "operator.hpp"
 #include <float.h>
+#include <iostream>
 
 void op_pooling::forward(tensor_t * input, tensor_t * output)
 {
@@ -17,7 +18,13 @@ void op_pooling::forward(tensor_t * input, tensor_t * output)
     int kernel_w = pooling_desc->kernel[1];
     int pad_h    = pooling_desc->padding[0];
     int pad_w    = pooling_desc->padding[1];
-
+#if 0
+    std::cout<<"pooling, ";
+    std::cout<<"input:"<<batch<<"x"<<channel<<"x"<<input_h<<"x"<<input_w<<", "
+             <<"output:"<<batch<<"x"<<channel<<"x"<<out_h<<"x"<<out_w<<", "
+             <<"kernel:"<<kernel_h<<"x"<<kernel_w<<", stride:"<<stride_h<<"x"<<stride_w
+             <<", pad:"<<pad_h<<"x"<<pad_w<<", mode:"<<pooling_desc->mode <<std::endl;
+#endif
     float * input_ptr = (float*)input->mem;
     float * output_ptr = (float*)output->mem;
 
@@ -53,9 +60,10 @@ void op_pooling::forward(tensor_t * input, tensor_t * output)
                     float val = init_value;
                     for(int y=h_start;y<h_end;y++){
                         for(int x=w_start;x<w_end;x++){
-                            int in_idx = n*channel*input_h*input_w +
-                                    c*input_h*input_w + y*input_w + x;
-                            update_func(input_ptr[in_idx], val);
+                            int in_idx = n*channel*input_h*input_w + c*input_h*input_w + y*input_w + x;
+                            //std::cout<<"n:"<<n<<", c:"<<c<<", h:"<<y<<", w:"<<x<<", cur:"<<in_idx<<std::endl;
+                            float cur_input = input_ptr[in_idx];
+                            update_func(cur_input, val);
                         }
                     }
                     int pool_size = exclusive ? (h_end - h_start) * (w_end - w_start)

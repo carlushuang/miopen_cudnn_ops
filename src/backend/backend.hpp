@@ -3,29 +3,7 @@
 
 #include <iostream>
 #include <unistd.h>
-
-#ifdef WITH_MIOPEN
-#include <miopen/miopen.h>
-#include <hip/hip_runtime_api.h>
-#define CHECK_HIP(cmd) \
-do {\
-    hipError_t hip_error  = cmd;\
-    if (hip_error != hipSuccess) { \
-        std::cerr<<"ERROR: '"<<hipGetErrorString(hip_error)<<"'("<<hip_error<<") at "<<__FILE__<<":"<<__LINE__<<std::endl;\
-        exit(EXIT_FAILURE);\
-    }\
-} while(0)
-
-#define CHECK_MIO(cmd) \
-{\
-    miopenStatus_t miostat = cmd;\
-    if (miostat != miopenStatusSuccess) { \
-        std::cerr<<"ERROR: '"<<miopenGetErrorString(miostat)<<"'("<<miostat<<") at "<<__FILE__<<":"<<__LINE__<<std::endl;\
-        exit(EXIT_FAILURE);\
-    }\
-}
-
-#endif
+#include <assert.h>
 
 enum device_type{
     DEVICE_HIP,
@@ -114,8 +92,53 @@ public:
         pooling_mode mode){return nullptr;}
     virtual void pooling_desc_destroy(pooling_desc_t * pooling_desc){}
 };
-
 #ifdef WITH_MIOPEN
+#include <miopen/miopen.h>
+#include <hip/hip_runtime_api.h>
+#define CHECK_HIP(cmd) \
+do {\
+    hipError_t hip_error  = cmd;\
+    if (hip_error != hipSuccess) { \
+        std::cerr<<"ERROR: '"<<hipGetErrorString(hip_error)<<"'("<<hip_error<<") at "<<__FILE__<<":"<<__LINE__<<std::endl;\
+        exit(EXIT_FAILURE);\
+    }\
+} while(0)
+
+#define CHECK_MIO(cmd) \
+{\
+    miopenStatus_t miostat = cmd;\
+    if (miostat != miopenStatusSuccess) { \
+        std::cerr<<"ERROR: '"<<miopenGetErrorString(miostat)<<"'("<<miostat<<") at "<<__FILE__<<":"<<__LINE__<<std::endl;\
+        exit(EXIT_FAILURE);\
+    }\
+}
+
+
+static inline miopenDataType_t to_miopen_data_type(tensor_data_type data_type){
+    if(data_type == TENSOR_DT_FLOAT)
+        return miopenFloat;
+    if(data_type == TENSOR_DT_HALF)
+        return miopenHalf;
+    assert(0 && "unsupported data type in miopen");
+    return miopenFloat; // not reached
+}
+
+static inline miopenPoolingMode_t to_miopen_pooling_mode(pooling_mode mode){
+    switch (mode) {
+        case POOLING_MAX:
+            return miopenPoolingMax;
+        case POOLING_MAX_DETERMINISTIC:
+            return miopenPoolingMax;
+        case POOLING_AVG_EXCLUSIVE:
+            std::cerr<<"MIOpen currently implementation only support inclusive avg pooling, "
+                    <<"using exclusive may result in calculation fail"<<std::endl;
+            return miopenPoolingAverage;
+        case POOLING_AVG_INCLUSIVE:
+            return miopenPoolingAverage;
+        default:
+            assert(0 && "unsupported pooling mode");
+    }
+}
 class device_hip: public device_base{
 public:
     int id;
@@ -124,6 +147,83 @@ public:
 
     device_hip(int dev_id);
     ~device_hip();
+    virtual tensor_t * tensor_create(int * dims, int n_dim, 
+                    tensor_data_type data_type, tensor_layout layout);
+    virtual void tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind);
+    virtual void tensor_destroy(tensor_t * tensor);
+
+    virtual pooling_desc_t * pooling_desc_create(
+        int * kernel, int * stride, int * padding, int n_dims,
+        pooling_mode mode);
+    virtual void pooling_desc_destroy(pooling_desc_t * pooling_desc);
+};
+#endif
+
+#ifdef WITH_CUDNN
+#include <cuda_runtime.h>
+#include <cudnn.h>
+
+#define CHECK_CUDA(cmd) \
+do {\
+    cudaError_t cuda_error  = cmd;\
+    if (cuda_error != cudaSuccess) { \
+        std::cerr<<"ERROR: '"<<cudaGetErrorString(cuda_error)<<"'("<<cuda_error<<")"<<" at "<<__FILE__<<":"<<__LINE__<<std::endl;\
+        exit(EXIT_FAILURE);\
+    }\
+} while(0)
+
+#define CHECK_CUDNN(cmd) \
+do {\
+    cudnnStatus_t stat = cmd;\
+    if (stat != CUDNN_STATUS_SUCCESS) { \
+        std::cerr<<"ERROR: '"<<cudnnGetErrorString(stat)<<"'("<<stat<<")"<<" at "<<__FILE__<<":"<<__LINE__<<std::endl;\
+        exit(EXIT_FAILURE);\
+    }\
+} while(0)
+
+static inline cudnnDataType_t to_cudnn_data_type(tensor_data_type data_type){
+    if(data_type == TENSOR_DT_FLOAT)
+        return CUDNN_DATA_FLOAT;
+    if(data_type == TENSOR_DT_HALF)
+        return CUDNN_DATA_HALF;
+    assert(0 && "unsupported data type in cudnn");
+    return CUDNN_DATA_FLOAT; // not reached
+}
+
+static inline cudnnTensorFormat_t to_cudnn_layout(tensor_layout layout){
+    if(layout == TENSOR_LAYOUT_1D){
+        std::cerr<<"WARNING, should not use TENSOR_LAYOUT_1D with cudnn"<<std::endl;
+        return CUDNN_TENSOR_NCHW;
+    }
+    if(layout == TENSOR_LAYOUT_NCHW)
+        return CUDNN_TENSOR_NCHW;
+    if(layout == TENSOR_LAYOUT_NHWC)
+        return CUDNN_TENSOR_NHWC;
+    assert(0 && "unsupported layout in cudnn");
+    return CUDNN_TENSOR_NCHW;
+}
+static inline cudnnPoolingMode_t to_cudnn_pooling_mode(pooling_mode mode){
+    switch (mode) {
+        case POOLING_MAX:
+            return CUDNN_POOLING_MAX;
+        case POOLING_MAX_DETERMINISTIC:
+            return CUDNN_POOLING_MAX_DETERMINISTIC;
+        case POOLING_AVG_EXCLUSIVE:
+            return CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING;
+        case POOLING_AVG_INCLUSIVE:
+            return CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING;
+        default:
+            assert(0 && "unsupported pooling mode");
+    }
+}
+class device_cuda : public device_base{
+public:
+    device_cuda(int dev_id);
+    ~device_cuda();
+    int id;
+    cudaStream_t queue;
+    cudnnHandle_t handle;
+
     virtual tensor_t * tensor_create(int * dims, int n_dim, 
                     tensor_data_type data_type, tensor_layout layout);
     virtual void tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind);
