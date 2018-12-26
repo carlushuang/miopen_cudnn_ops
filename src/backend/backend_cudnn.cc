@@ -92,12 +92,16 @@ void device_cuda::tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind
     }
 }
 void device_cuda::tensor_destroy(tensor_t * tensor){
-    CHECK_CUDA(cudaFree(tensor->mem));
+    if(tensor->mem)
+        CHECK_CUDA(cudaFree(tensor->mem));
     if(tensor->desc)
         CHECK_CUDNN(cudnnDestroyTensorDescriptor((cudnnTensorDescriptor_t)tensor->desc));
     delete tensor;
 }
-
+void device_cuda::tensor_set(tensor_t * tensor, unsigned char v){
+    assert(tensor->mem);
+    CHECK_CUDA(cudaMemset(tensor->mem, v, tensor->bytes()));
+}
 pooling_desc_t * device_cuda::pooling_desc_create(int * kernel, int * stride, int * padding, int n_dims,
     pooling_mode mode){
     assert(n_dims==2 && "miopen only support 2d pooling");

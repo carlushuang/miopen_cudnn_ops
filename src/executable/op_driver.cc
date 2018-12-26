@@ -45,7 +45,7 @@ static void rand_float(float * vec, int len){
     if(!flag){ srand(time(NULL)); flag = 1; }
 
     for(i=0;i<len;i++){
-        vec[i] = ((float)(rand() % 1000)) / 1000.0f;
+        vec[i] = ((float)(rand() % 10000)) / 10000.0f;
     }
 }
 
@@ -139,6 +139,7 @@ static int pooling_driver(int argc, char ** argv){
     parser.insert_arg("m", "pooling mode, "
                 "0-MAX 1-MAX_DETERMINISTIC "
                 "2-AVG_EXCLUSIVE 3-AVG_INCLUSIVE ", 0);
+    parser.insert_arg("f", "forward(1) or backward(0)", 1);
     parser.parse(argc, argv);
     parser.usage();
     parser.dump_parsed();
@@ -151,6 +152,7 @@ static int pooling_driver(int argc, char ** argv){
     int h     = parser.get_arg("h");
     int w     = parser.get_arg("w");
     int pmode = parser.get_arg("m");
+    int is_fwd = parser.get_arg("f");
 
     int pooling_kernel[2] = {ksize,ksize};
     int pooling_stride[2] = {ssize,ssize};
@@ -160,42 +162,86 @@ static int pooling_driver(int argc, char ** argv){
     else if(pmode == 1) pm = POOLING_MAX_DETERMINISTIC;
     else if(pmode == 2) pm = POOLING_AVG_EXCLUSIVE;
     else if(pmode == 3) pm = POOLING_AVG_INCLUSIVE;
+    else {std::cout<<"unsupport pooing mode "<<pmode<<std::endl; return -1;}
 
     pooling_desc_t * pooling_desc = gpu_dev->pooling_desc_create(
         pooling_kernel, pooling_stride, pooling_padding, 2,
         pm);
-    operator_base * op_pooling = operator_create(gpu_dev, OP_POOLING, pooling_desc);
-
+    tensor_t *t_in, *t_out, *t_in_c, *t_out_c;
+    tensor_t *t_in_grad, *t_out_grad, *t_in_grad_c, *t_out_grad_c;
+    operator_base *op_pooling, *op_pooling_c;
     int t_in_dim[4] = {n,c,h,w};
-    tensor_t *t_in = gpu_dev->tensor_create(t_in_dim, 4,
-            TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
     int t_out_dim[4];
-    op_pooling->infer_shape(t_in, t_out_dim);
-    tensor_t *t_out = gpu_dev->tensor_create(t_out_dim, 4,
-            TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
 
-    // create cpu side op
-    operator_base * op_pooling_c = operator_create(cpu_dev, OP_POOLING, pooling_desc);
-    tensor_t * t_in_c = cpu_dev->tensor_create(t_in_dim, 4,
-            TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
-    tensor_t * t_out_c = cpu_dev->tensor_create(t_out_dim, 4,
-            TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    // create gpu tensors
+    op_pooling = operator_create(gpu_dev, OP_POOLING, pooling_desc);
+    
+    t_in = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    op_pooling->input = t_in;
+    op_pooling->infer_shape(t_out_dim);
+    t_out = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    op_pooling->output = t_out;
+    if(!is_fwd){
+        t_in_grad = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        t_out_grad = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        op_pooling->input_grad = t_in_grad;
+        op_pooling->output_grad = t_out_grad;
+    }
+
+    // create cpu tensors
+    op_pooling_c = operator_create(cpu_dev, OP_POOLING, pooling_desc);
+    t_in_c = cpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    t_out_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    op_pooling_c->input = t_in_c;
+    op_pooling_c->output = t_out_c;
+    if(!is_fwd){
+        t_in_grad_c = cpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        t_out_grad_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        op_pooling_c->input_grad = t_in_grad_c;
+        op_pooling_c->output_grad = t_out_grad_c;
+    }
+
+    // prepare input
     rand_float((float*)t_in_c->mem, t_in_c->elem());
     gpu_dev->tensor_copy(t_in, t_in_c->mem, t_in_c->bytes(), TENSOR_COPY_H2D);
+    if(!is_fwd){
+        rand_float((float*)t_out_grad_c->mem, t_out_grad_c->elem());
+        gpu_dev->tensor_copy(t_out_grad, t_out_grad_c->mem, t_out_grad_c->bytes(), TENSOR_COPY_H2D);
 
-    op_pooling->forward(t_in, t_out);
+        cpu_dev->tensor_set(t_in_grad_c, 0);
+        gpu_dev->tensor_set(t_in_grad, 0);
+    }
+
+    op_pooling->forward();
+    if(!is_fwd)
+        op_pooling->backward();
     //validation
-    op_pooling_c->forward(t_in_c, t_out_c);
+    op_pooling_c->forward();
+    if(!is_fwd)
+        op_pooling_c->backward();
 
     // compare
     float * dev_out = new float[t_out->elem()];
     gpu_dev->tensor_copy(dev_out, t_out, t_out->bytes(), TENSOR_COPY_D2H);
 
-    int error_cnt = util_compare_data(dev_out, t_out_c->mem, t_out_c->elem(), TENSOR_DT_FLOAT, 0.01);
+    int error_cnt = util_compare_data(dev_out, t_out_c->mem, t_out_c->elem(), TENSOR_DT_FLOAT, 0.001);
     if(error_cnt){
-        std::cout<<"compare fail"<<std::endl;
+        std::cout<<"forward compare fail"<<std::endl;
     }else{
-        std::cout<<"result verified"<<std::endl;
+        std::cout<<"forward result verified"<<std::endl;
+    }
+    delete [] dev_out;
+    if(!is_fwd){
+        float * dev_in_grad = new float[t_in_grad->elem()];
+        gpu_dev->tensor_copy(dev_in_grad, t_in_grad, t_in_grad->bytes(), TENSOR_COPY_D2H);
+
+        int error_cnt_grad = util_compare_data(dev_in_grad, t_in_grad_c->mem, t_in_grad_c->elem(), TENSOR_DT_FLOAT, 0.001);
+        if(error_cnt_grad){
+            std::cout<<"backward compare fail"<<std::endl;
+        }else{
+            std::cout<<"backward result verified"<<std::endl;
+        }
+        delete [] dev_in_grad;
     }
 
     operator_destroy(op_pooling);
@@ -206,6 +252,12 @@ static int pooling_driver(int argc, char ** argv){
     operator_destroy(op_pooling_c);
     cpu_dev->tensor_destroy(t_in_c);
     cpu_dev->tensor_destroy(t_out_c);
+    if(!is_fwd){
+        gpu_dev->tensor_destroy(t_in_grad);
+        gpu_dev->tensor_destroy(t_out_grad);
+        cpu_dev->tensor_destroy(t_in_grad_c);
+        cpu_dev->tensor_destroy(t_out_grad_c);
+    }
     return 0;
 }
 
@@ -222,7 +274,6 @@ int main(int argc, char ** argv){
     int rtn = 0;
     if(op_type == "pooling")
         rtn = pooling_driver(argc, argv);
-
 
     device_destroy(gpu_dev);
     device_destroy(cpu_dev);

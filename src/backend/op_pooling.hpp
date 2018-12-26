@@ -5,9 +5,10 @@ class op_pooling:public operator_base{
 public:
     op_pooling(void * desc){pooling_desc = (pooling_desc_t *)desc;}
     ~op_pooling(){}
-    virtual void forward(tensor_t * input, tensor_t * output);
-    virtual void backward(tensor_t * input, tensor_t * output);
-    virtual void infer_shape(tensor_t * input, int * out_dim){
+    virtual void forward();
+    virtual void backward();
+    virtual void infer_shape(int * out_dim){
+        assert(input);
         out_dim[0] = input->dim[0];
         out_dim[1] = input->dim[1];
         int ksize,pad,stride,in_size;
@@ -32,13 +33,9 @@ class op_pooling_miopen : public op_pooling{
 public:
     op_pooling_miopen(void * desc);
     ~op_pooling_miopen();
-    virtual void forward(tensor_t * input, tensor_t * output);
-    virtual void backward(tensor_t * input, tensor_t * output);
+    virtual void forward();
+    virtual void backward();
 
-    tensor_t * workspace_tensor;
-
-    int forward_prepared;
-    int backward_prepared;
 };
 #endif
 #ifdef WITH_CUDNN
@@ -46,13 +43,9 @@ class op_pooling_cudnn : public op_pooling{
 public:
     op_pooling_cudnn(void * desc);
     ~op_pooling_cudnn();
-    virtual void forward(tensor_t * input, tensor_t * output);
-    virtual void backward(tensor_t * input, tensor_t * output);
+    virtual void forward();
+    virtual void backward();
 
-    tensor_t * workspace_tensor;
-
-    int forward_prepared;
-    int backward_prepared;
 };
 #endif
 

@@ -54,8 +54,8 @@ struct tensor_t{
 
     tensor_data_type data_type; 
     tensor_layout    layout;
-    void * desc;
-    void * mem;
+    void * desc ={nullptr};
+    void * mem ={nullptr};
 };
 
 enum pooling_mode {
@@ -68,6 +68,7 @@ enum pooling_mode {
 #define MAX_POOLING_DIM 3
 struct pooling_desc_t{
     pooling_mode mode;
+    bool adaptive;      // adaptive avg pooling https://arxiv.org/pdf/1804.10070.pdf
     int n_dims;
     int kernel[MAX_POOLING_DIM];
     int stride[MAX_POOLING_DIM];
@@ -86,6 +87,7 @@ public:
                     tensor_data_type data_type, tensor_layout layout)=0;
     virtual void tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind)=0;
     virtual void tensor_destroy(tensor_t * tensor)=0;
+    virtual void tensor_set(tensor_t * tensor, unsigned char v) = 0;
 
     virtual pooling_desc_t * pooling_desc_create(
         int * kernel, int * stride, int * padding, int n_dims,
@@ -151,6 +153,7 @@ public:
                     tensor_data_type data_type, tensor_layout layout);
     virtual void tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind);
     virtual void tensor_destroy(tensor_t * tensor);
+    virtual void tensor_set(tensor_t * tensor, unsigned char v);
 
     virtual pooling_desc_t * pooling_desc_create(
         int * kernel, int * stride, int * padding, int n_dims,
@@ -228,6 +231,7 @@ public:
                     tensor_data_type data_type, tensor_layout layout);
     virtual void tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind);
     virtual void tensor_destroy(tensor_t * tensor);
+    virtual void tensor_set(tensor_t * tensor, unsigned char v);
 
     virtual pooling_desc_t * pooling_desc_create(
         int * kernel, int * stride, int * padding, int n_dims,
@@ -244,6 +248,7 @@ public:
                     tensor_data_type data_type, tensor_layout layout);
     virtual void tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind);
     virtual void tensor_destroy(tensor_t * tensor);
+    virtual void tensor_set(tensor_t * tensor, unsigned char v);
 };
 
 

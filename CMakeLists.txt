@@ -15,7 +15,7 @@ set(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "")
 set(CMAKE_STATIC_LIBRARY_LINK_C_FLAGS "")
 set(CMAKE_STATIC_LIBRARY_LINK_CXX_FLAGS "")
 
-option(WITH_MIOPEN "compile with miopen, aka amd platform" ON)
+option(WITH_MIOPEN "compile with miopen, aka amd platform" OFF)
 option(WITH_CUDNN "compile with cudnn, aka nv platform" OFF)
 
 list(APPEND backend_src 

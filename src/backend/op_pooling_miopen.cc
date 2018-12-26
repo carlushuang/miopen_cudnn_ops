@@ -1,10 +1,7 @@
 #include "operator.hpp"
 
 op_pooling_miopen::op_pooling_miopen(void * desc) : op_pooling(desc) {
-    forward_prepared = 0;
-    backward_prepared = 0;
 
-    workspace_tensor = nullptr;
 }
 op_pooling_miopen::~op_pooling_miopen(){
     if(workspace_tensor)
@@ -12,8 +9,9 @@ op_pooling_miopen::~op_pooling_miopen(){
 }
 
 
-void op_pooling_miopen::forward(tensor_t * input, tensor_t * output)
+void op_pooling_miopen::forward()
 {
+    assert(input && output);
     device_hip * dev_hip = (device_hip *)dev;
     if(!forward_prepared){
         size_t workspace_size;
@@ -37,7 +35,7 @@ void op_pooling_miopen::forward(tensor_t * input, tensor_t * output)
         workspace_tensor->mem, workspace_tensor->bytes()));
 }
 
-void op_pooling_miopen::backward(tensor_t * input, tensor_t * output)
+void op_pooling_miopen::backward()
 {
-
+    assert(input && output);
 }

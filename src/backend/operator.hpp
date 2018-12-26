@@ -12,13 +12,25 @@ class operator_base{
 public:
     operator_base(){}
     virtual ~operator_base(){}
-    virtual void forward(tensor_t * input, tensor_t * output) = 0;
-    virtual void backward(tensor_t * input, tensor_t * output) = 0;
+    virtual void forward() = 0;
+    virtual void backward() = 0;
 
-    virtual void infer_shape(tensor_t * input, int * out_dim){}
+    virtual void infer_shape(int * out_dim){}
+
+    tensor_t * input ={nullptr};
+    tensor_t * output ={nullptr};
+
+    tensor_t * input_grad ={nullptr};
+    tensor_t * output_grad ={nullptr};
+    tensor_t * filter_grad ={nullptr};
 
     operator_type type;
-    device_base *  dev;
+    device_base * dev ={nullptr};
+
+    tensor_t * workspace_tensor ={nullptr};
+
+    int forward_prepared ={0};
+    int backward_prepared ={0};
 };
 
 #include "op_pooling.hpp"

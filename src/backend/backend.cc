@@ -38,10 +38,14 @@ void device_c::tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind co
 }
 void device_c::tensor_destroy(tensor_t * tensor)
 {
-    delete [] (unsigned char*)tensor->mem;
+    if(tensor->mem)
+        delete [] (unsigned char*)tensor->mem;
     delete tensor;
 }
-
+void device_c::tensor_set(tensor_t * tensor, unsigned char v){
+    assert(tensor->mem);
+    memset(tensor->mem, v, tensor->bytes());
+}
 device_base  * device_create(device_type type, int dev_id){
     device_base * handle=nullptr;
 #ifdef WITH_MIOPEN

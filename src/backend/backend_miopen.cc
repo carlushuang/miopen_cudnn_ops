@@ -109,12 +109,16 @@ void device_hip::tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind 
     }
 }
 void device_hip::tensor_destroy(tensor_t * tensor){
-    CHECK_HIP(hipFree(tensor->mem));
+    if(tensor->mem)
+        CHECK_HIP(hipFree(tensor->mem));
     if(tensor->desc)
         CHECK_MIO(miopenDestroyTensorDescriptor((miopenTensorDescriptor_t)tensor->desc));
     delete tensor;
 }
-
+void device_hip::tensor_set(tensor_t * tensor, unsigned char v){
+    assert(tensor->mem);
+    CHECK_HIP(hipMemset(tensor->mem, v, tensor->bytes()));
+}
 pooling_desc_t * device_hip::pooling_desc_create(int * kernel, int * stride, int * padding, int n_dims,
     pooling_mode mode){
     assert(n_dims==2 && "miopen only support 2d pooling");
