@@ -1,7 +1,7 @@
 #!/bin/sh
 
-WITH_CUDNN=`test -e $WITH_CUDNN && echo 0 || echo $WITH_CUDNN `
-WITH_MIOPEN=`test -e $WITH_MIOPEN && echo 1 || echo $WITH_MIOPEN`
+WITH_CUDNN=`test -e "$WITH_CUDNN" && echo 0 || echo $WITH_CUDNN `
+WITH_MIOPEN=`test -e "$WITH_MIOPEN" && echo 1 || echo $WITH_MIOPEN`
 
 CMAKE_BACKEND=`test "$WITH_CUDNN"  ==  "1" && 
     echo "-DWITH_CUDNN=ON -DWITH_MIOPEN=OFF" ||
