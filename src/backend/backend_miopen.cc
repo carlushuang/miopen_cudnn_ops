@@ -153,10 +153,13 @@ void device_hip::pooling_desc_destroy(pooling_desc_t * pooling_desc){
 }
 
 activation_desc_t * device_hip::activation_desc_create(activation_mode mode, float alpha){
+    float beta = .0f;
+    if(mode == ACTIVATION_TANH)
+        beta = 1.f; // in miopen, beta * tanh(alpha * x)
     miopenActivationDescriptor_t desc;
     CHECK_MIO(miopenCreateActivationDescriptor(&desc));
     CHECK_MIO(miopenSetActivationDescriptor(desc,
-            to_miopen_activation_mode(mode), (double)alpha, 0, 0));
+            to_miopen_activation_mode(mode), (double)alpha, (double)beta, 0));
 
     activation_desc_t * act_desc = new activation_desc_t;
     act_desc->mode = mode;
