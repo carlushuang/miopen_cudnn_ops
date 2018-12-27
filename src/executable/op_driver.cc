@@ -6,8 +6,8 @@
 #include <string.h>
 #include <assert.h>
 #include <unordered_map>
-#include <time.h>
-#include <sys/time.h>
+#include <random>
+
 #include <unistd.h>
 
 static device_base * determin_device(){
@@ -38,30 +38,32 @@ static device_base * determin_device(){
     assert(dev && "Fail to create device");
     return dev;
 }
+
 static void rand_float(float * vec, int len){
     int i;
 
-    static int flag = 0;
-    if(!flag){ srand(time(NULL)); flag = 1; }
+    static std::random_device rd;
+    static std::mt19937 mt(rd());
+    static std::uniform_real_distribution<float> dist(-1.f, 1.f);
 
-    for(i=0;i<len;i++){
-        vec[i] = ((float)(rand() % 10000)) / 10000.0f;
+    for(int i=0;i<len;i++){
+        vec[i] = dist(mt);
     }
 }
 
 // parse int arg value
 class arg_parser{
-#define ARG_VALUE_INIT 32767
+#define ARG_VALUE_INIT "n/a"
 public:
     struct arg_store{
         std::string arg_name;
-        int value;
-        int default_value;
+        std::string value;
+        std::string default_value;
         std::string help_str;
     };
     arg_parser(const char * _name):name(_name){};
     ~arg_parser(){}
-    void insert_arg(const char * arg, const char * help, int default_value){
+    void insert_arg(const char * arg, const char * help, std::string default_value){
         arg_store a;
         a.arg_name = std::string("-") + arg;
         a.help_str = help;
@@ -72,6 +74,10 @@ public:
     bool parse(int argc, char ** argv){
         for(int i=0;i<argc;i+=2){
             std::string arg_name = argv[i];
+            if(arg_name == "--help" || arg_name == "-help"){
+                usage();
+                return false;
+            }
             if(arg_pair.count(arg_name) == 0){
                 std::cerr<<"unrecognized arg "<<arg_name<<std::endl;;
                 usage();
@@ -82,30 +88,38 @@ public:
                 usage();
                 return false;
             }
-            int v = atoi(argv[i+1]);
-            arg_pair[arg_name].value = v;
+            arg_pair[arg_name].value = argv[i+1];
         }
         return true;
     }
-    int  get_arg(const char * arg){
+    std::string get_arg(const char * arg){
         std::string arg_name = std::string("-") + arg;
         if(arg_pair.count(arg_name) == 0){
             std::cerr<<"no such arg "<<arg_name<<std::endl;;
             usage();
-            return false;
+            assert(0 && "no such arg in parse arg");
         }
-        int v = arg_pair[arg_name].value;
-        if(v == ARG_VALUE_INIT)
-            v = arg_pair[arg_name].default_value;
-        return v;
+        std::string val = arg_pair[arg_name].value;
+        if(val == ARG_VALUE_INIT)
+            val = arg_pair[arg_name].default_value;
+        return val; 
+    }
+    int  get_arg_int(const char * arg){
+        std::string val = get_arg(arg);
+        return atoi(val.c_str());
+    }
+    float get_arg_float(const char * arg){
+        std::string val = get_arg(arg);
+        return (float)atof(val.c_str());
     }
     void usage(){
         std::cout<<name<<" args:"<<std::endl;
+        std::cout<<"    --help, print usage and return"<<std::endl;
         for(auto & it : arg_pair){
             arg_store a = it.second;
             std::cout<<"    "<<it.first<<", "<<a.help_str<<
                 "(default:"<<a.default_value<<")"
-#if 1
+#if 0
                 <<", cur:"<<a.value
 #endif           
                 <<std::endl;
@@ -129,31 +143,33 @@ static device_base * cpu_dev;
 
 static int pooling_driver(int argc, char ** argv){
     arg_parser parser("pooling");
-    parser.insert_arg("k", "kernel size", 2);
-    parser.insert_arg("s", "stride", 2);
-    parser.insert_arg("p", "padding", 0);
-    parser.insert_arg("n", "batch", 2);
-    parser.insert_arg("c", "channel", 3);
-    parser.insert_arg("h", "height", 128);
-    parser.insert_arg("w", "width", 128);
+    parser.insert_arg("k", "kernel size", "2");
+    parser.insert_arg("s", "stride", "2");
+    parser.insert_arg("p", "padding", "0");
+    parser.insert_arg("n", "batch", "2");
+    parser.insert_arg("c", "channel", "3");
+    parser.insert_arg("h", "height", "128");
+    parser.insert_arg("w", "width", "128");
     parser.insert_arg("m", "pooling mode, "
                 "0-MAX 1-MAX_DETERMINISTIC "
-                "2-AVG_EXCLUSIVE 3-AVG_INCLUSIVE ", 0);
-    parser.insert_arg("f", "forward(1) or backward(0)", 1);
-    parser.parse(argc, argv);
-    parser.usage();
+                "2-AVG_EXCLUSIVE 3-AVG_INCLUSIVE ", "0");
+    parser.insert_arg("f", "forward(1) or backward(0)", "0");
+
+    // parse arg
+    if(!parser.parse(argc, argv)) return -1;
     parser.dump_parsed();
 
-    int ksize = parser.get_arg("k");
-    int psize = parser.get_arg("p");
-    int ssize = parser.get_arg("s");
-    int n     = parser.get_arg("n");
-    int c     = parser.get_arg("c");
-    int h     = parser.get_arg("h");
-    int w     = parser.get_arg("w");
-    int pmode = parser.get_arg("m");
-    int is_fwd = parser.get_arg("f");
+    int ksize = parser.get_arg_int("k");
+    int psize = parser.get_arg_int("p");
+    int ssize = parser.get_arg_int("s");
+    int n     = parser.get_arg_int("n");
+    int c     = parser.get_arg_int("c");
+    int h     = parser.get_arg_int("h");
+    int w     = parser.get_arg_int("w");
+    int pmode = parser.get_arg_int("m");
+    int is_fwd = parser.get_arg_int("f");
 
+    // get param from arg
     int pooling_kernel[2] = {ksize,ksize};
     int pooling_stride[2] = {ssize,ssize};
     int pooling_padding[2] = {psize,psize};
@@ -164,7 +180,11 @@ static int pooling_driver(int argc, char ** argv){
     else if(pmode == 3) pm = POOLING_AVG_INCLUSIVE;
     else {std::cout<<"unsupport pooing mode "<<pmode<<std::endl; return -1;}
 
+    // start
     pooling_desc_t * pooling_desc = gpu_dev->pooling_desc_create(
+        pooling_kernel, pooling_stride, pooling_padding, 2,
+        pm);
+    pooling_desc_t * pooling_desc_c = cpu_dev->pooling_desc_create(
         pooling_kernel, pooling_stride, pooling_padding, 2,
         pm);
     tensor_t *t_in, *t_out, *t_in_c, *t_out_c;
@@ -189,7 +209,7 @@ static int pooling_driver(int argc, char ** argv){
     }
 
     // create cpu tensors
-    op_pooling_c = operator_create(cpu_dev, OP_POOLING, pooling_desc);
+    op_pooling_c = operator_create(cpu_dev, OP_POOLING, pooling_desc_c);
     t_in_c = cpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
     t_out_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
     op_pooling_c->input = t_in_c;
@@ -226,9 +246,9 @@ static int pooling_driver(int argc, char ** argv){
 
     int error_cnt = util_compare_data(dev_out, t_out_c->mem, t_out_c->elem(), TENSOR_DT_FLOAT, 0.001);
     if(error_cnt){
-        std::cout<<"forward compare fail"<<std::endl;
+        std::cout<<"pooling fwd compare fail"<<std::endl;
     }else{
-        std::cout<<"forward result verified"<<std::endl;
+        std::cout<<"pooling fwd result verified"<<std::endl;
     }
     delete [] dev_out;
     if(!is_fwd){
@@ -237,19 +257,155 @@ static int pooling_driver(int argc, char ** argv){
 
         int error_cnt_grad = util_compare_data(dev_in_grad, t_in_grad_c->mem, t_in_grad_c->elem(), TENSOR_DT_FLOAT, 0.001);
         if(error_cnt_grad){
-            std::cout<<"backward compare fail"<<std::endl;
+            std::cout<<"pooling bwd compare fail"<<std::endl;
         }else{
-            std::cout<<"backward result verified"<<std::endl;
+            std::cout<<"pooling bwd result verified"<<std::endl;
         }
         delete [] dev_in_grad;
     }
 
+    // clean
     operator_destroy(op_pooling);
     gpu_dev->pooling_desc_destroy(pooling_desc);
     gpu_dev->tensor_destroy(t_in);
     gpu_dev->tensor_destroy(t_out);
 
     operator_destroy(op_pooling_c);
+    cpu_dev->pooling_desc_destroy(pooling_desc_c);
+    cpu_dev->tensor_destroy(t_in_c);
+    cpu_dev->tensor_destroy(t_out_c);
+    if(!is_fwd){
+        gpu_dev->tensor_destroy(t_in_grad);
+        gpu_dev->tensor_destroy(t_out_grad);
+        cpu_dev->tensor_destroy(t_in_grad_c);
+        cpu_dev->tensor_destroy(t_out_grad_c);
+    }
+    return 0;
+}
+static int act_driver(int argc, char ** argv){
+    arg_parser parser("act");
+
+    parser.insert_arg("n", "batch", "2");
+    parser.insert_arg("c", "channel", "3");
+    parser.insert_arg("h", "height", "128");
+    parser.insert_arg("w", "width", "128");
+    parser.insert_arg("m", "activation mode, "
+                "sigmoid relu tanh clipped-relu elu identity", 
+                 "sigmoid");
+    parser.insert_arg("a", "alpha value, used in some activation mode", "1.0");
+    parser.insert_arg("f", "forward(1) or backward(0)", "0");
+
+    // parse arg
+    if(!parser.parse(argc, argv)) return -1;
+    parser.dump_parsed();
+
+    // get param from arg
+    int n     = parser.get_arg_int("n");
+    int c     = parser.get_arg_int("c");
+    int h     = parser.get_arg_int("h");
+    int w     = parser.get_arg_int("w");
+    int is_fwd = parser.get_arg_int("f");
+    std::string amode = parser.get_arg("m");
+    float alpha = parser.get_arg_float("a");
+
+    // start
+    activation_mode am = ACTIVATION_SIGMOID;
+    if(amode == "sigmoid") am = ACTIVATION_SIGMOID;
+    else if(amode == "relu") am = ACTIVATION_RELU;
+    else if(amode == "tanh") am = ACTIVATION_TANH;
+    else if(amode == "clipped-relu") am = ACTIVATION_CLIPPED_RELU;
+    else if(amode == "elu") am = ACTIVATION_ELU;
+    else if(amode == "identity") am = ACTIVATION_IDENTITY;
+    else {std::cout<<"unsupport activation mode "<<amode<<std::endl; return -1;}
+
+    activation_desc_t * act_desc = gpu_dev->activation_desc_create(am, alpha);
+    activation_desc_t * act_desc_c = cpu_dev->activation_desc_create(am, alpha);
+
+    tensor_t *t_in, *t_out, *t_in_c, *t_out_c;
+    tensor_t *t_in_grad, *t_out_grad, *t_in_grad_c, *t_out_grad_c;
+    operator_base *op_act, *op_act_c;
+    int t_in_dim[4] = {n,c,h,w};
+    int t_out_dim[4];
+
+    // create gpu tensors
+    op_act = operator_create(gpu_dev, OP_ACTIVATION, act_desc);
+    
+    t_in = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    op_act->input = t_in;
+    op_act->infer_shape(t_out_dim);
+    t_out = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    op_act->output = t_out;
+    if(!is_fwd){
+        t_in_grad = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        t_out_grad = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        op_act->input_grad = t_in_grad;
+        op_act->output_grad = t_out_grad;
+    }
+
+    // create cpu tensors
+    op_act_c = operator_create(cpu_dev, OP_ACTIVATION, act_desc_c);
+    t_in_c = cpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    t_out_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    op_act_c->input = t_in_c;
+    op_act_c->output = t_out_c;
+    if(!is_fwd){
+        t_in_grad_c = cpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        t_out_grad_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        op_act_c->input_grad = t_in_grad_c;
+        op_act_c->output_grad = t_out_grad_c;
+    }
+
+    // prepare input
+    rand_float((float*)t_in_c->mem, t_in_c->elem());
+    gpu_dev->tensor_copy(t_in, t_in_c->mem, t_in_c->bytes(), TENSOR_COPY_H2D);
+    if(!is_fwd){
+        rand_float((float*)t_out_grad_c->mem, t_out_grad_c->elem());
+        gpu_dev->tensor_copy(t_out_grad, t_out_grad_c->mem, t_out_grad_c->bytes(), TENSOR_COPY_H2D);
+
+        cpu_dev->tensor_set(t_in_grad_c, 0);
+        gpu_dev->tensor_set(t_in_grad, 0);
+    }
+
+    op_act->forward();
+    if(!is_fwd)
+        op_act->backward();
+    //validation
+    op_act_c->forward();
+    if(!is_fwd)
+        op_act_c->backward();
+
+    // compare
+    float * dev_out = new float[t_out->elem()];
+    gpu_dev->tensor_copy(dev_out, t_out, t_out->bytes(), TENSOR_COPY_D2H);
+
+    int error_cnt = util_compare_data(dev_out, t_out_c->mem, t_out_c->elem(), TENSOR_DT_FLOAT, 0.001);
+    if(error_cnt){
+        std::cout<<"activation fwd compare fail"<<std::endl;
+    }else{
+        std::cout<<"activation fwd result verified"<<std::endl;
+    }
+    delete [] dev_out;
+    if(!is_fwd){
+        float * dev_in_grad = new float[t_in_grad->elem()];
+        gpu_dev->tensor_copy(dev_in_grad, t_in_grad, t_in_grad->bytes(), TENSOR_COPY_D2H);
+
+        int error_cnt_grad = util_compare_data(dev_in_grad, t_in_grad_c->mem, t_in_grad_c->elem(), TENSOR_DT_FLOAT, 0.001);
+        if(error_cnt_grad){
+            std::cout<<"activation bwd compare fail"<<std::endl;
+        }else{
+            std::cout<<"activation bwd result verified"<<std::endl;
+        }
+        delete [] dev_in_grad;
+    }
+
+    // clean
+    operator_destroy(op_act);
+    gpu_dev->activation_desc_destroy(act_desc);
+    gpu_dev->tensor_destroy(t_in);
+    gpu_dev->tensor_destroy(t_out);
+
+    operator_destroy(op_act_c);
+    cpu_dev->activation_desc_destroy(act_desc_c);
     cpu_dev->tensor_destroy(t_in_c);
     cpu_dev->tensor_destroy(t_out_c);
     if(!is_fwd){
@@ -274,6 +430,8 @@ int main(int argc, char ** argv){
     int rtn = 0;
     if(op_type == "pooling")
         rtn = pooling_driver(argc, argv);
+    if(op_type == "act")
+        rtn = act_driver(argc, argv);
 
     device_destroy(gpu_dev);
     device_destroy(cpu_dev);

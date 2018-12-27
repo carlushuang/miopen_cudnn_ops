@@ -5,15 +5,17 @@
 /**/
 
 static inline void dump_dev_prop(void * prop, int dev_id){
+    char * var = getenv("VERBOSE_DEVICE");
+    if(!var)
+        return;
     hipDeviceProp_t *hip_prop = static_cast<hipDeviceProp_t*>(prop);
-    std::cout<<"Device " << dev_id << ": " << hip_prop->name<<std::endl;
-    std::cout<<"\tArch:\t" << hip_prop->gcnArch<<std::endl;
-    std::cout<<"\tGMem:\t" << hip_prop->totalGlobalMem/1024/1024 << " MiB"<<std::endl;
-    std::cout<<"\twarps:\t" << hip_prop->warpSize<<std::endl;
-    std::cout<<"\tCUs:\t" << hip_prop->multiProcessorCount<<std::endl;
-    std::cout<<"\tMaxClk:\t" << hip_prop->clockRate<<std::endl;
-    std::cout<<"\tMemClk:\t" << hip_prop->memoryClockRate<<std::endl;
-
+    LOG_I()<<"Device " << dev_id << ": " << hip_prop->name<<std::endl;
+    LOG_I()<<"\tArch:\t" << hip_prop->gcnArch<<std::endl;
+    LOG_I()<<"\tGMem:\t" << hip_prop->totalGlobalMem/1024/1024 << " MiB"<<std::endl;
+    LOG_I()<<"\twarps:\t" << hip_prop->warpSize<<std::endl;
+    LOG_I()<<"\tCUs:\t" << hip_prop->multiProcessorCount<<std::endl;
+    LOG_I()<<"\tMaxClk:\t" << hip_prop->clockRate<<std::endl;
+    LOG_I()<<"\tMemClk:\t" << hip_prop->memoryClockRate<<std::endl;
 }
 
 struct miopen_handle_t{
@@ -150,3 +152,19 @@ void device_hip::pooling_desc_destroy(pooling_desc_t * pooling_desc){
     delete pooling_desc;
 }
 
+activation_desc_t * device_hip::activation_desc_create(activation_mode mode, float alpha){
+    miopenActivationDescriptor_t desc;
+    CHECK_MIO(miopenCreateActivationDescriptor(&desc));
+    CHECK_MIO(miopenSetActivationDescriptor(desc,
+            to_miopen_activation_mode(mode), (double)alpha, 0, 0));
+
+    activation_desc_t * act_desc = new activation_desc_t;
+    act_desc->mode = mode;
+    act_desc->alpha = alpha;
+    act_desc->desc = desc;
+    return  act_desc;
+}
+activation_desc_t device_hip::activation_desc_destroy(activation_desc_t * act_desc){
+    CHECK_MIO(miopenDestroyActivationDescriptor((miopenActivationDescriptor_t)act_desc->desc));
+    delete act_desc;
+}

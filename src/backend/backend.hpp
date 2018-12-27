@@ -5,14 +5,28 @@
 #include <unistd.h>
 #include <assert.h>
 
+enum log_level{
+    LOG_INFO = 0,
+    LOG_WARNING,
+    LOG_ERROR,
+    LOG_FATAL,
+};
+
+std::ostream & log_to_stream(log_level level);
+
+#define LOG_I() log_to_stream(LOG_INFO)
+#define LOG_W() log_to_stream(LOG_WARNING)
+#define LOG_E() log_to_stream(LOG_ERROR)
+#define LOG_F() log_to_stream(LOG_FATAL)
+
 enum device_type{
-    DEVICE_HIP,
+    DEVICE_HIP = 0,
     DEVICE_CUDA,
     DEVICE_C,
 };
 
 enum tensor_data_type{
-    TENSOR_DT_FLOAT,
+    TENSOR_DT_FLOAT = 0,
     TENSOR_DT_HALF,
 };
 
@@ -24,12 +38,12 @@ static inline int data_type_unit(tensor_data_type dt){
     return 0;
 }
 enum tensor_layout{
-    TENSOR_LAYOUT_1D,
+    TENSOR_LAYOUT_1D = 0,
     TENSOR_LAYOUT_NCHW,
     TENSOR_LAYOUT_NHWC,
 };
 enum tensor_copy_kind{
-    TENSOR_COPY_D2H,
+    TENSOR_COPY_D2H = 0,
     TENSOR_COPY_H2D,
     TENSOR_COPY_D2D,
     TENSOR_COPY_ANY
@@ -59,10 +73,19 @@ struct tensor_t{
 };
 
 enum pooling_mode {
-    POOLING_MAX,
+    POOLING_MAX = 0,
     POOLING_MAX_DETERMINISTIC,
     POOLING_AVG_EXCLUSIVE,
     POOLING_AVG_INCLUSIVE
+};
+
+enum activation_mode {
+    ACTIVATION_SIGMOID = 0,
+    ACTIVATION_RELU,
+    ACTIVATION_TANH,
+    ACTIVATION_CLIPPED_RELU,
+    ACTIVATION_ELU,
+    ACTIVATION_IDENTITY,
 };
 
 #define MAX_POOLING_DIM 3
@@ -76,6 +99,11 @@ struct pooling_desc_t{
     void * desc;
 };
 
+struct activation_desc_t{
+    activation_mode mode;
+    float alpha;
+    void * desc;
+};
 
 class device_base{
 public:
@@ -91,8 +119,11 @@ public:
 
     virtual pooling_desc_t * pooling_desc_create(
         int * kernel, int * stride, int * padding, int n_dims,
-        pooling_mode mode){return nullptr;}
-    virtual void pooling_desc_destroy(pooling_desc_t * pooling_desc){}
+        pooling_mode mode)=0;
+    virtual void pooling_desc_destroy(pooling_desc_t * pooling_desc)=0;
+
+    virtual activation_desc_t * activation_desc_create(activation_mode mode, float alpha)=0;
+    virtual activation_desc_t activation_desc_destroy(activation_desc_t * act_desc)=0;
 };
 #ifdef WITH_MIOPEN
 #include <miopen/miopen.h>
@@ -101,7 +132,7 @@ public:
 do {\
     hipError_t hip_error  = cmd;\
     if (hip_error != hipSuccess) { \
-        std::cerr<<"ERROR: '"<<hipGetErrorString(hip_error)<<"'("<<hip_error<<") at "<<__FILE__<<":"<<__LINE__<<std::endl;\
+        LOG_E()<<"'"<<hipGetErrorString(hip_error)<<"'("<<hip_error<<") at "<<__FILE__<<":"<<__LINE__<<std::endl;\
         exit(EXIT_FAILURE);\
     }\
 } while(0)
@@ -110,7 +141,7 @@ do {\
 {\
     miopenStatus_t miostat = cmd;\
     if (miostat != miopenStatusSuccess) { \
-        std::cerr<<"ERROR: '"<<miopenGetErrorString(miostat)<<"'("<<miostat<<") at "<<__FILE__<<":"<<__LINE__<<std::endl;\
+        LOG_E()<<"'"<<miopenGetErrorString(miostat)<<"'("<<miostat<<") at "<<__FILE__<<":"<<__LINE__<<std::endl;\
         exit(EXIT_FAILURE);\
     }\
 }
@@ -132,13 +163,31 @@ static inline miopenPoolingMode_t to_miopen_pooling_mode(pooling_mode mode){
         case POOLING_MAX_DETERMINISTIC:
             return miopenPoolingMax;
         case POOLING_AVG_EXCLUSIVE:
-            std::cerr<<"MIOpen currently implementation only support inclusive avg pooling, "
-                    <<"using exclusive may result in calculation fail"<<std::endl;
             return miopenPoolingAverage;
         case POOLING_AVG_INCLUSIVE:
+            LOG_W()<<"MIOpen currently implementation only support exclusive avg pooling, "
+                    <<"using inclusive may result in calculation fail"<<std::endl;
             return miopenPoolingAverage;
         default:
             assert(0 && "unsupported pooling mode");
+    }
+}
+static inline miopenActivationMode_t to_miopen_activation_mode(activation_mode mode){
+    switch(mode){
+        case ACTIVATION_SIGMOID:
+            return miopenActivationLOGISTIC;
+        case ACTIVATION_RELU:
+            return miopenActivationRELU;
+        case ACTIVATION_TANH:
+            return miopenActivationTANH;
+        case ACTIVATION_CLIPPED_RELU:
+            return miopenActivationCLIPPEDRELU;
+        case ACTIVATION_ELU:
+            return miopenActivationELU;
+        case ACTIVATION_IDENTITY:
+            return miopenActivationPASTHRU;
+        default:
+            assert(0 && "unsupported act mode");
     }
 }
 class device_hip: public device_base{
@@ -159,6 +208,9 @@ public:
         int * kernel, int * stride, int * padding, int n_dims,
         pooling_mode mode);
     virtual void pooling_desc_destroy(pooling_desc_t * pooling_desc);
+
+    virtual activation_desc_t * activation_desc_create(activation_mode mode, float alpha);
+    virtual activation_desc_t activation_desc_destroy(activation_desc_t * act_desc);
 };
 #endif
 
@@ -170,7 +222,7 @@ public:
 do {\
     cudaError_t cuda_error  = cmd;\
     if (cuda_error != cudaSuccess) { \
-        std::cerr<<"ERROR: '"<<cudaGetErrorString(cuda_error)<<"'("<<cuda_error<<")"<<" at "<<__FILE__<<":"<<__LINE__<<std::endl;\
+        LOG_E()<<"'"<<cudaGetErrorString(cuda_error)<<"'("<<cuda_error<<")"<<" at "<<__FILE__<<":"<<__LINE__<<std::endl;\
         exit(EXIT_FAILURE);\
     }\
 } while(0)
@@ -179,7 +231,7 @@ do {\
 do {\
     cudnnStatus_t stat = cmd;\
     if (stat != CUDNN_STATUS_SUCCESS) { \
-        std::cerr<<"ERROR: '"<<cudnnGetErrorString(stat)<<"'("<<stat<<")"<<" at "<<__FILE__<<":"<<__LINE__<<std::endl;\
+        LOG_E()<<"'"<<cudnnGetErrorString(stat)<<"'("<<stat<<")"<<" at "<<__FILE__<<":"<<__LINE__<<std::endl;\
         exit(EXIT_FAILURE);\
     }\
 } while(0)
@@ -195,7 +247,7 @@ static inline cudnnDataType_t to_cudnn_data_type(tensor_data_type data_type){
 
 static inline cudnnTensorFormat_t to_cudnn_layout(tensor_layout layout){
     if(layout == TENSOR_LAYOUT_1D){
-        std::cerr<<"WARNING, should not use TENSOR_LAYOUT_1D with cudnn"<<std::endl;
+        LOG_W()<<"should not use TENSOR_LAYOUT_1D with cudnn"<<std::endl;
         return CUDNN_TENSOR_NCHW;
     }
     if(layout == TENSOR_LAYOUT_NCHW)
@@ -219,6 +271,24 @@ static inline cudnnPoolingMode_t to_cudnn_pooling_mode(pooling_mode mode){
             assert(0 && "unsupported pooling mode");
     }
 }
+static inline cudnnActivationMode_t to_cudnn_activation_mode(activation_mode mode){
+    switch(mode){
+        case ACTIVATION_SIGMOID:
+            return CUDNN_ACTIVATION_SIGMOID;
+        case ACTIVATION_RELU:
+            return CUDNN_ACTIVATION_RELU;
+        case ACTIVATION_TANH:
+            return CUDNN_ACTIVATION_TANH;
+        case ACTIVATION_CLIPPED_RELU:
+            return CUDNN_ACTIVATION_CLIPPED_RELU;
+        case ACTIVATION_ELU:
+            return CUDNN_ACTIVATION_ELU;
+        case ACTIVATION_IDENTITY:
+            return CUDNN_ACTIVATION_IDENTITY;
+        default:
+            assert(0 && "unsupported act mode");
+    }
+}
 class device_cuda : public device_base{
 public:
     device_cuda(int dev_id);
@@ -237,6 +307,8 @@ public:
         int * kernel, int * stride, int * padding, int n_dims,
         pooling_mode mode);
     virtual void pooling_desc_destroy(pooling_desc_t * pooling_desc);
+    virtual activation_desc_t * activation_desc_create(activation_mode mode, float alpha);
+    virtual activation_desc_t activation_desc_destroy(activation_desc_t * act_desc);
 };
 #endif
 
@@ -249,6 +321,36 @@ public:
     virtual void tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind);
     virtual void tensor_destroy(tensor_t * tensor);
     virtual void tensor_set(tensor_t * tensor, unsigned char v);
+    virtual pooling_desc_t * pooling_desc_create(
+        int * kernel, int * stride, int * padding, int n_dims,
+        pooling_mode mode)
+        {
+            pooling_desc_t *pooling_desc = new pooling_desc_t;
+            pooling_desc->mode = mode;
+            pooling_desc->n_dims = 2;
+            pooling_desc->kernel[0] = kernel[0];
+            pooling_desc->kernel[1] = kernel[1];
+            pooling_desc->stride[0] = stride[0];
+            pooling_desc->stride[1] = stride[1];
+            pooling_desc->padding[0] = padding[0];
+            pooling_desc->padding[1] = padding[1];
+
+            pooling_desc->desc = nullptr;
+            return pooling_desc;
+        }
+    virtual void pooling_desc_destroy(pooling_desc_t * pooling_desc){
+        assert(pooling_desc);
+        delete pooling_desc;
+    }
+    virtual activation_desc_t * activation_desc_create(activation_mode mode, float alpha){
+        activation_desc_t * act_desc = new activation_desc_t;
+        act_desc->mode = mode;
+        act_desc->alpha = alpha;
+        return act_desc;
+    }
+    virtual activation_desc_t activation_desc_destroy(activation_desc_t * act_desc){
+        delete act_desc;
+    }
 };
 
 
@@ -273,7 +375,7 @@ static inline int util_compare_data(void * m1, void * m2,
             d = ABS(d);
             if(d>delta){
                 if(error_cnt < MAX_ERROR_PRINT)
-                    std::cout<<"compare fail, with "<<f1[i]<<" -- "<<f2[i]<<
+                    LOG_E()<<"compare fail, with "<<f1[i]<<" -- "<<f2[i]<<
                         " each, delta:"<< d <<", idx:"<<i<<std::endl;;
                 error_cnt++;
             }

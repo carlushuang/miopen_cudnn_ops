@@ -2,6 +2,26 @@
 #include <stdlib.h>
 #include <string.h>
 
+std::ostream & log_to_stream(log_level level){
+    if(level == LOG_INFO){
+        std::cout<<"[INFO] ";
+        return std::cout;
+    }
+    if(level == LOG_WARNING){
+        std::cerr<<"[WARN] ";
+        return std::cerr;
+    }
+    if(level == LOG_ERROR){
+        std::cerr<<"[ERRO] ";
+        return std::cerr;
+    }
+    if(level == LOG_FATAL){
+        std::cerr<<"[FATAL]";
+        return std::cerr;
+    }
+    return std::cout;  
+}
+
 device_c::device_c(){
     this->type = DEVICE_C;
 }
