@@ -4,8 +4,6 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE release)
 endif()
 
-
-
 project(miopen_cudnn_ops LANGUAGES CXX)
 # https://stackoverflow.com/questions/10599038/can-i-skip-cmake-compiler-tests-or-avoid-error-unrecognized-option-rdynamic
 # https://cmake.org/Bug/view.php?id=9985
@@ -61,8 +59,12 @@ if(WITH_MIOPEN)
 
 elseif(WITH_CUDNN)
     message(STATUS "compile on cudnn, nv platform")
-    set(CUDA_PATH /usr/local/cuda-9.2)
-    set(CMAKE_CXX_COMPILER  ${CUDA_PATH}/bin/nvcc)
+    set(CUDA_HOME /usr/local/cuda)
+    if(NOT "$ENV{CUDA_HOME}" STREQUAL "")
+        set(CUDA_HOME $ENV{CUDA_HOME})
+    endif()
+    message(STATUS "using cuda in path:${CUDA_HOME}")
+    set(CMAKE_CXX_COMPILER  ${CUDA_HOME}/bin/nvcc)
     add_definitions(-DWITH_CUDNN)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64 -O3 -Wall -Wno-literal-suffix")
 
