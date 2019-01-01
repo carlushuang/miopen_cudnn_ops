@@ -1,9 +1,9 @@
 #!/bin/sh
 
-WITH_CUDNN=`test X"$WITH_CUDNN" == X && echo 0 || echo $WITH_CUDNN `
-WITH_MIOPEN=`test X"$WITH_MIOPEN" == X && echo 1 || echo $WITH_MIOPEN`
+WITH_CUDNN=`test "X$WITH_CUDNN" = "X" && echo 0 || echo $WITH_CUDNN `
+WITH_MIOPEN=`test "X$WITH_MIOPEN" = "X" && echo 1 || echo $WITH_MIOPEN`
 
-CMAKE_BACKEND=`test "$WITH_CUDNN"  ==  "1" && 
+CMAKE_BACKEND=`test "$WITH_CUDNN"  =  "1" &&
     echo "-DWITH_CUDNN=ON -DWITH_MIOPEN=OFF" ||
     echo "-DWITH_CUDNN=OFF -DWITH_MIOPEN=ON"`
 
