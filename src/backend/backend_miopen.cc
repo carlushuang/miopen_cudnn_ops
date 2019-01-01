@@ -167,7 +167,7 @@ activation_desc_t * device_hip::activation_desc_create(activation_mode mode, flo
     act_desc->desc = desc;
     return  act_desc;
 }
-activation_desc_t device_hip::activation_desc_destroy(activation_desc_t * act_desc){
+void device_hip::activation_desc_destroy(activation_desc_t * act_desc){
     CHECK_MIO(miopenDestroyActivationDescriptor((miopenActivationDescriptor_t)act_desc->desc));
     delete act_desc;
 }

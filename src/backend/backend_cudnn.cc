@@ -147,7 +147,47 @@ activation_desc_t * device_cuda::activation_desc_create(activation_mode mode, fl
     act_desc->desc = desc;
     return  act_desc;
 }
-activation_desc_t device_cuda::activation_desc_destroy(activation_desc_t * act_desc){
+void device_cuda::activation_desc_destroy(activation_desc_t * act_desc){
     CHECK_CUDNN(cudnnDestroyActivationDescriptor((cudnnActivationDescriptor_t)act_desc->desc));
     delete act_desc;
+}
+convolution_desc_t * device_cuda::convolution_desc_create(convolution_mode mode, tensor_data_type dt,
+        int * kernel, int * stride, int * padding, int n_dims,
+        int groups, int k, int input_c, int input_h, int input_w)
+{
+    assert(n_dims <= MAX_CONV_DIM && "conv dimension not support");
+    cudnnConvolutionDescriptor_t desc;
+    CHECK_CUDNN(cudnnCreateConvolutionDescriptor(&desc));
+
+    // dilatoin is supported in cudnn ver>=6.0
+    int dilation[3] = {1,1,1};
+    CHECK_CUDNN(cudnnSetConvolutionNdDescriptor(desc, n_dims,
+            padding, stride, dilation, to_cudnn_convolution_mode(mode), to_cudnn_data_type(dt)));
+    
+    if(groups > 1)
+        CHECK_CUDNN(cudnnSetConvolutionGroupCount(desc, groups));
+
+    convolution_desc_t * conv_desc = new convolution_desc_t;
+    conv_desc->mode = mode;
+    conv_desc->n_dims = n_dims;
+
+    conv_desc->kernel[0] = kernel[0];
+    conv_desc->kernel[1] = kernel[1];
+    conv_desc->stride[0] = stride[0];
+    conv_desc->stride[1] = stride[1];
+    conv_desc->padding[0] = padding[0];
+    conv_desc->padding[1] = padding[1];
+    conv_desc->groups = groups;
+    conv_desc->k = k;
+    conv_desc->input_c = input_c;
+    conv_desc->input_h = input_h;
+    conv_desc->input_w = input_w;
+    conv_desc->desc = desc;
+
+    return conv_desc;
+}
+void device_cuda::convolution_desc_destroy(convolution_desc_t * conv_desc)
+{
+    CHECK_CUDNN(cudnnDestroyConvolutionDescriptor((cudnnConvolutionDescriptor_t)conv_desc->desc));
+    delete conv_desc;
 }

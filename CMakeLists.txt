@@ -22,7 +22,8 @@ list(APPEND backend_src
             src/backend/backend.cc
             src/backend/operator.cc 
             src/backend/op_pooling.cc
-            src/backend/op_activation.cc )
+            src/backend/op_activation.cc
+            src/backend/op_convolution.cc )
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CMAKE_CURRENT_LIST_DIR}/src/backend ")
@@ -55,7 +56,8 @@ if(WITH_MIOPEN)
     list(APPEND backend_src
                 src/backend/backend_miopen.cc
                 src/backend/op_pooling_miopen.cc
-                src/backend/op_activation_miopen.cc )
+                src/backend/op_activation_miopen.cc
+                src/backend/op_convolution_miopen.cc )
 
 elseif(WITH_CUDNN)
     message(STATUS "compile on cudnn, nv platform")
@@ -80,7 +82,8 @@ elseif(WITH_CUDNN)
     list(APPEND backend_src
                 src/backend/backend_cudnn.cc
                 src/backend/op_pooling_cudnn.cc
-                src/backend/op_activation_cudnn.cc )
+                src/backend/op_activation_cudnn.cc
+                src/backend/op_convolution_cudnn.cc )
 else()
     message(FATAL "unknown platform.")
 endif()

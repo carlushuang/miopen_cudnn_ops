@@ -88,7 +88,27 @@ enum activation_mode {
     ACTIVATION_IDENTITY,
 };
 
-#define MAX_POOLING_DIM 3
+enum convolution_mode{
+    CONVOLUTION_CONV = 0,
+    CONVOLUTION_CROSS_CORRELATION,  // most nn use this mode
+};
+
+#define MAX_CONV_DIM 2
+struct convolution_desc_t{
+    convolution_mode mode;
+    int n_dims;
+    int kernel[MAX_CONV_DIM];
+    int stride[MAX_CONV_DIM];
+    int padding[MAX_CONV_DIM];
+    int groups;     // group_conv/dw_conv
+    int k;          // number of filters, out feat map
+    int input_c;    // input feat map
+    int input_h;
+    int input_w;
+    void * desc;    // cudnn have convDesc/filterDesc
+};
+
+#define MAX_POOLING_DIM 2
 struct pooling_desc_t{
     pooling_mode mode;
     bool adaptive;      // adaptive avg pooling https://arxiv.org/pdf/1804.10070.pdf
@@ -105,11 +125,25 @@ struct activation_desc_t{
     void * desc;
 };
 
+class device_base;
+class workspace {
+public:
+    workspace(device_base * dev_);
+    ~workspace();
+    void * get(int bytes, tensor_data_type dt);
+    tensor_t * get_tensor(int bytes, tensor_data_type dt);
+
+private:
+    int cur_byte = {0};
+    device_base * dev;
+    tensor_t * workspace_tensor ={nullptr};
+};
+
 class device_base{
 public:
     device_type type;
-    device_base(){}
-    virtual ~device_base(){}
+    device_base(){ws = new workspace(this);}
+    virtual ~device_base(){delete ws;}
 
     virtual tensor_t * tensor_create(int * dims, int n_dim, 
                     tensor_data_type data_type, tensor_layout layout)=0;
@@ -123,8 +157,15 @@ public:
     virtual void pooling_desc_destroy(pooling_desc_t * pooling_desc)=0;
 
     virtual activation_desc_t * activation_desc_create(activation_mode mode, float alpha)=0;
-    virtual activation_desc_t activation_desc_destroy(activation_desc_t * act_desc)=0;
+    virtual void activation_desc_destroy(activation_desc_t * act_desc)=0;
+    virtual convolution_desc_t * convolution_desc_create(convolution_mode mode, tensor_data_type dt,
+        int * kernel, int * stride, int * padding, int n_dims,
+        int groups, int k, int input_c, int input_h, int input_w) = 0;
+    virtual void convolution_desc_destroy(convolution_desc_t * conv_desc) = 0;
+
+    workspace * ws = {nullptr};
 };
+
 #ifdef WITH_MIOPEN
 #include <miopen/miopen.h>
 #include <hip/hip_runtime_api.h>
@@ -190,6 +231,22 @@ static inline miopenActivationMode_t to_miopen_activation_mode(activation_mode m
             assert(0 && "unsupported act mode");
     }
 }
+
+static inline miopenConvolutionMode_t to_miopen_convolution_mode(convolution_mode mode){
+    switch(mode){
+        case CONVOLUTION_CONV:
+            LOG_E()<<"miopen only support cross correlation mode for conv"<<std::endl;
+            return miopenConvolution;
+        break;
+        case CONVOLUTION_CROSS_CORRELATION:
+            return miopenConvolution;
+        break;
+        default:
+            assert(0 && "unsupported convolution mode");
+        break;
+    }
+}
+
 class device_hip: public device_base{
 public:
     int id;
@@ -210,7 +267,11 @@ public:
     virtual void pooling_desc_destroy(pooling_desc_t * pooling_desc);
 
     virtual activation_desc_t * activation_desc_create(activation_mode mode, float alpha);
-    virtual activation_desc_t activation_desc_destroy(activation_desc_t * act_desc);
+    virtual void activation_desc_destroy(activation_desc_t * act_desc);
+    virtual convolution_desc_t * convolution_desc_create(convolution_mode mode, tensor_data_type dt,
+        int * kernel, int * stride, int * padding, int n_dims,
+        int groups, int k, int input_c, int input_h, int input_w);
+    virtual void convolution_desc_destroy(convolution_desc_t * conv_desc);
 };
 #endif
 
@@ -289,6 +350,19 @@ static inline cudnnActivationMode_t to_cudnn_activation_mode(activation_mode mod
             assert(0 && "unsupported act mode");
     }
 }
+static inline cudnnConvolutionMode_t to_cudnn_convolution_mode(convolution_mode mode){
+    switch(mode){
+        case CONVOLUTION_CONV:
+            CUDNN_CONVOLUTION;
+        break;
+        case CONVOLUTION_CROSS_CORRELATION:
+            CUDNN_CROSS_CORRELATION;
+        break;
+        default:
+            assert(0 && "unsupported conv mode");
+        break;
+    }
+}
 class device_cuda : public device_base{
 public:
     device_cuda(int dev_id);
@@ -308,7 +382,11 @@ public:
         pooling_mode mode);
     virtual void pooling_desc_destroy(pooling_desc_t * pooling_desc);
     virtual activation_desc_t * activation_desc_create(activation_mode mode, float alpha);
-    virtual activation_desc_t activation_desc_destroy(activation_desc_t * act_desc);
+    virtual void activation_desc_destroy(activation_desc_t * act_desc);
+    virtual convolution_desc_t * convolution_desc_create(convolution_mode mode, tensor_data_type dt,
+        int * kernel, int * stride, int * padding, int n_dims,
+        int groups, int k, int input_c, int input_h, int input_w);
+    virtual void convolution_desc_destroy(convolution_desc_t * conv_desc);
 };
 #endif
 
@@ -348,8 +426,32 @@ public:
         act_desc->alpha = alpha;
         return act_desc;
     }
-    virtual activation_desc_t activation_desc_destroy(activation_desc_t * act_desc){
+    virtual void activation_desc_destroy(activation_desc_t * act_desc){
         delete act_desc;
+    }
+    virtual convolution_desc_t * convolution_desc_create(convolution_mode mode, tensor_data_type dt,
+        int * kernel, int * stride, int * padding, int n_dims,
+        int groups, int k, int input_c, int input_h, int input_w){
+        convolution_desc_t * conv_desc = new convolution_desc_t;
+        conv_desc->mode = mode;
+        conv_desc->n_dims = n_dims;
+        assert(n_dims <= MAX_CONV_DIM && "conv dimension not support");
+        conv_desc->kernel[0] = kernel[0];
+        conv_desc->kernel[1] = kernel[1];
+        conv_desc->stride[0] = stride[0];
+        conv_desc->stride[1] = stride[1];
+        conv_desc->padding[0] = padding[0];
+        conv_desc->padding[1] = padding[1];
+        conv_desc->groups = groups;
+        conv_desc->k = k;
+        conv_desc->input_c = input_c;
+        conv_desc->input_h = input_h;
+        conv_desc->input_w = input_w;
+        conv_desc->desc = nullptr;
+        return conv_desc;
+    }
+    virtual void convolution_desc_destroy(convolution_desc_t * conv_desc){
+        delete conv_desc;
     }
 };
 

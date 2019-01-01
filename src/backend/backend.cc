@@ -22,6 +22,31 @@ std::ostream & log_to_stream(log_level level){
     return std::cout;  
 }
 
+workspace::workspace(device_base * dev_):dev(dev_){}
+workspace::~workspace(){
+    if(workspace_tensor)
+        dev->tensor_destroy(workspace_tensor);
+}
+void * workspace::get(int bytes, tensor_data_type dt){
+    return get_tensor(bytes, dt)->mem;
+}
+tensor_t * workspace::get_tensor(int bytes, tensor_data_type dt){
+    assert(bytes != 0);
+    if(!workspace_tensor){
+        workspace_tensor = dev->tensor_create(&bytes, 1, dt, TENSOR_LAYOUT_1D);
+        cur_byte = bytes;
+    }
+    else{
+        if(bytes > cur_byte){
+            dev->tensor_destroy(workspace_tensor);
+            workspace_tensor = dev->tensor_create(&bytes, 1, dt, TENSOR_LAYOUT_1D);
+            cur_byte = bytes;
+        }
+    }
+    // CAUTION: the inner size of this tensor may bigger than request!
+    return workspace_tensor;
+}
+
 device_c::device_c(){
     this->type = DEVICE_C;
 }

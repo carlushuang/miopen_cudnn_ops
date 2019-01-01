@@ -20,6 +20,7 @@ public:
 
     tensor_t * input ={nullptr};
     tensor_t * output ={nullptr};
+    tensor_t * filter ={nullptr};
 
     tensor_t * input_grad ={nullptr};
     tensor_t * output_grad ={nullptr};
@@ -28,11 +29,68 @@ public:
     operator_type type;
     device_base * dev ={nullptr};
 
-    tensor_t * workspace_tensor ={nullptr};
-
     int forward_prepared ={0};
     int backward_prepared ={0};
 };
+/*****************************************************************************
+ * convolution op
+*/
+
+class op_convolution : public operator_base{
+public:
+    op_convolution(void * desc){conv_desc = (convolution_desc_t*)desc;}
+    ~op_convolution(){}
+    virtual void forward();
+    virtual void backward();
+    virtual void infer_shape(int * out_dim){
+        assert(input && conv_desc);
+        out_dim[0] = input->dim[0];
+        out_dim[1] = conv_desc->k;
+        // https://pytorch.org/docs/stable/nn.html?highlight=conv2d#torch.nn.Conv2d
+        auto conv_size_func = [](int in_size, int pad, int dilation, int ksize, int stride){
+            return (in_size + 2*pad- dilation*(ksize-1) -1)/stride + 1;
+        };
+        int dilation[2] = {1, 1};
+        out_dim[2] = conv_size_func(input->dim[2], conv_desc->padding[0],
+                dilation[0], conv_desc->kernel[0], conv_desc->stride[0]);
+        out_dim[3] = conv_size_func(input->dim[3], conv_desc->padding[1],
+                dilation[1], conv_desc->kernel[1], conv_desc->stride[1]);
+    }
+
+    convolution_desc_t * conv_desc;
+
+    size_t fwd_workspace_size;
+    void * fwd_workspace_mem;
+
+    size_t bwd_data_workspace_size;
+    void * bwd_data_workspace_mem;
+    size_t bwd_filter_workspace_size;
+    void * bwd_filter_workspace_mem;
+};
+#ifdef WITH_MIOPEN
+class op_convolution_miopen : public op_convolution{
+public:
+   op_convolution_miopen(void * desc);
+    ~op_convolution_miopen();
+    virtual void forward();
+    virtual void backward();
+
+};
+#endif
+#ifdef WITH_CUDNN
+class op_convolution_cudnn : public op_convolution{
+public:
+   op_convolution_cudnn(void * desc);
+    ~op_convolution_cudnn();
+    virtual void forward();
+    virtual void backward();
+    cudnnFilterDescriptor_t filter_desc;
+    cudnnConvolutionFwdAlgo_t fwd_algo;
+    cudnnConvolutionBwdFilterAlgo_t bwd_filter_algo;
+    cudnnConvolutionBwdDataAlgo_t bwd_data_algo;
+
+};
+#endif
 
 /*****************************************************************************
  * pooling op
@@ -40,7 +98,7 @@ public:
 class op_pooling:public operator_base{
 public:
     op_pooling(void * desc){pooling_desc = (pooling_desc_t *)desc;}
-    ~op_pooling(){}
+    virtual ~op_pooling(){}
     virtual void forward();
     virtual void backward();
     virtual void infer_shape(int * out_dim){
@@ -91,7 +149,7 @@ public:
 class op_activation:public operator_base{
 public:
     op_activation(void * desc){act_desc = (activation_desc_t *)desc;}
-    ~op_activation(){}
+    virtual ~op_activation(){}
     virtual void forward();
     virtual void backward();
     virtual void infer_shape(int * out_dim){

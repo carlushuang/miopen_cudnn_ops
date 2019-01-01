@@ -4,8 +4,7 @@ op_pooling_cudnn::op_pooling_cudnn(void * desc) : op_pooling(desc) {
 
 }
 op_pooling_cudnn::~op_pooling_cudnn(){
-    if(workspace_tensor)
-        dev->tensor_destroy(workspace_tensor);
+
 }
 
 void op_pooling_cudnn::forward()
