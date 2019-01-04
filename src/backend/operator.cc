@@ -23,6 +23,7 @@
 operator_base * operator_create(device_base *device, operator_type op_type, void * desc){
     operator_base * op = nullptr;
     switch(op_type){
+        DISPATCH_OP(OP_CONV, op_convolution)
         DISPATCH_OP(OP_POOLING, op_pooling)
         DISPATCH_OP(OP_ACTIVATION, op_activation)
     }

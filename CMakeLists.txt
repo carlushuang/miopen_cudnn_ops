@@ -16,7 +16,8 @@ set(CMAKE_STATIC_LIBRARY_LINK_CXX_FLAGS "")
 option(WITH_MIOPEN "compile with miopen, aka amd platform" OFF)
 option(WITH_CUDNN "compile with cudnn, aka nv platform" OFF)
 
-list(APPEND backend_src 
+list(APPEND backend_src
+            src/backend/math.cc
             src/backend/backend.cc
             src/backend/operator.cc 
             src/backend/op_pooling.cc

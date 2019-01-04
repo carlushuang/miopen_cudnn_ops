@@ -282,6 +282,167 @@ static int pooling_driver(int argc, char ** argv){
     }
     return 0;
 }
+static int conv_driver(int argc, char ** argv){
+    arg_parser parser("conv");
+
+    parser.insert_arg("n", "batch", "2");
+    parser.insert_arg("c", "channel", "3");
+    parser.insert_arg("h", "height", "128");
+    parser.insert_arg("w", "width", "128");
+    parser.insert_arg("p", "padding", "1");
+    parser.insert_arg("s", "stride", "1");
+    parser.insert_arg("x", "kernel size", "3");
+    parser.insert_arg("g", "group", "1");
+    parser.insert_arg("d", "dilation (experiment)", "1");
+    parser.insert_arg("k", "filter number", "32");
+    parser.insert_arg("m", "conv mode"
+            " conv/cross_correlation",
+            "cross_correlation");
+    parser.insert_arg("f", "forward(1) or backward(0)", "0");
+
+    // parse arg
+    if(!parser.parse(argc, argv)) return -1;
+    parser.dump_parsed();
+
+    // get param from arg
+    int batch    = parser.get_arg_int("n");
+    int input_c  = parser.get_arg_int("c");
+    int input_h  = parser.get_arg_int("h");
+    int input_w  = parser.get_arg_int("w");
+    int padding  = parser.get_arg_int("p");
+    int stride   = parser.get_arg_int("s");
+    int ksize    = parser.get_arg_int("x");
+    int groups   = parser.get_arg_int("g");
+    int dilation = parser.get_arg_int("d");
+    int filters  = parser.get_arg_int("k");
+    std::string cmode = parser.get_arg("m");
+    int is_fwd = parser.get_arg_int("f");
+
+    convolution_mode conv_mode;
+    if(cmode=="conv") conv_mode = CONVOLUTION_CONV;
+    else if (cmode == "cross_correlation") conv_mode = CONVOLUTION_CROSS_CORRELATION;
+    else {std::cout<<"unsupported conv mode "<<cmode<<std::endl; return -1;}
+
+    int _ksize[2] = {ksize, ksize};
+    int _pad[2] = {padding, padding};
+    int _stride[2] = {stride, stride};
+    int _dilation[2] = {dilation, dilation};
+    convolution_desc_t * conv_desc   = gpu_dev->convolution_desc_create(conv_mode, TENSOR_DT_FLOAT,
+        _ksize, _stride, _pad, _dilation, 2,
+        groups, filters, input_c, input_h, input_w);
+    convolution_desc_t * conv_desc_c = cpu_dev->convolution_desc_create(conv_mode, TENSOR_DT_FLOAT,
+        _ksize, _stride, _pad, _dilation, 2,
+        groups, filters, input_c, input_h, input_w);
+
+    tensor_t *t_in, *t_out, *t_filter, *t_in_c, *t_out_c, *t_filter_c;
+    tensor_t *t_in_grad, *t_out_grad, *t_filter_grad;
+    tensor_t *t_in_grad_c, *t_out_grad_c, *t_filter_grad_c;
+    operator_base *op_conv, *op_conv_c;
+    int t_in_dim[4] = {batch,input_c,input_h,input_w};
+    int t_filter_dim[4] = {filters, input_c, ksize, ksize};
+    int t_out_dim[4];
+
+    // create gpu tensors
+    op_conv = operator_create(gpu_dev, OP_CONV, conv_desc);
+
+    t_in = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    op_conv->input = t_in;
+    op_conv->infer_shape(t_out_dim);
+    t_out = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    op_conv->output = t_out;
+    t_filter = gpu_dev->tensor_create(t_filter_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    op_conv->filter = t_filter;
+    if(!is_fwd){
+        t_in_grad = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        t_out_grad = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        t_filter_grad = gpu_dev->tensor_create(t_filter_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        op_conv->input_grad = t_in_grad;
+        op_conv->output_grad = t_out_grad;
+        op_conv->filter_grad = t_filter_grad;
+    }
+
+    // create cpu tensors
+    op_conv_c = operator_create(cpu_dev, OP_CONV, conv_desc_c);
+    t_in_c = cpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    t_out_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    t_filter_c = cpu_dev->tensor_create(t_filter_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    op_conv_c->filter = t_filter_c;
+    op_conv_c->input = t_in_c;
+    op_conv_c->output = t_out_c;
+    if(!is_fwd){
+        t_in_grad_c = cpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        t_out_grad_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        t_filter_grad_c = cpu_dev->tensor_create(t_filter_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        op_conv_c->input_grad = t_in_grad_c;
+        op_conv_c->output_grad = t_out_grad_c;
+        op_conv_c->filter_grad = t_filter_grad_c;
+    }
+
+    // prepare input
+    rand_float((float*)t_in_c->mem, t_in_c->elem());
+    gpu_dev->tensor_copy(t_in, t_in_c->mem, t_in_c->bytes(), TENSOR_COPY_H2D);
+    if(!is_fwd){
+        rand_float((float*)t_out_grad_c->mem, t_out_grad_c->elem());
+        gpu_dev->tensor_copy(t_out_grad, t_out_grad_c->mem, t_out_grad_c->bytes(), TENSOR_COPY_H2D);
+
+        cpu_dev->tensor_set(t_in_grad_c, 0);
+        gpu_dev->tensor_set(t_in_grad, 0);
+    }
+
+    op_conv->forward();
+    if(!is_fwd)
+        op_conv->backward();
+    //validation
+    op_conv_c->forward();
+    if(!is_fwd)
+        op_conv_c->backward();
+
+    // compare
+    float * dev_out = new float[t_out->elem()];
+    gpu_dev->tensor_copy(dev_out, t_out, t_out->bytes(), TENSOR_COPY_D2H);
+
+    int error_cnt = util_compare_data(dev_out, t_out_c->mem, t_out_c->elem(), TENSOR_DT_FLOAT, 0.001);
+    if(error_cnt){
+        std::cout<<"convolution fwd compare fail"<<std::endl;
+    }else{
+        std::cout<<"convolution fwd result verified"<<std::endl;
+    }
+    delete [] dev_out;
+    if(!is_fwd){
+        float * dev_in_grad = new float[t_in_grad->elem()];
+        gpu_dev->tensor_copy(dev_in_grad, t_in_grad, t_in_grad->bytes(), TENSOR_COPY_D2H);
+
+        int error_cnt_grad = util_compare_data(dev_in_grad, t_in_grad_c->mem, t_in_grad_c->elem(), TENSOR_DT_FLOAT, 0.001);
+        if(error_cnt_grad){
+            std::cout<<"convolution bwd compare fail"<<std::endl;
+        }else{
+            std::cout<<"convolution bwd result verified"<<std::endl;
+        }
+        delete [] dev_in_grad;
+    }
+
+    // clean
+    operator_destroy(op_conv);
+    gpu_dev->convolution_desc_destroy(conv_desc);
+    gpu_dev->tensor_destroy(t_in);
+    gpu_dev->tensor_destroy(t_out);
+    gpu_dev->tensor_destroy(t_filter);
+
+    operator_destroy(op_conv_c);
+    cpu_dev->convolution_desc_destroy(conv_desc_c);
+    cpu_dev->tensor_destroy(t_in_c);
+    cpu_dev->tensor_destroy(t_out_c);
+    cpu_dev->tensor_destroy(t_filter_c);
+    if(!is_fwd){
+        gpu_dev->tensor_destroy(t_in_grad);
+        gpu_dev->tensor_destroy(t_out_grad);
+        gpu_dev->tensor_destroy(t_filter_grad);
+        cpu_dev->tensor_destroy(t_in_grad_c);
+        cpu_dev->tensor_destroy(t_out_grad_c);
+        cpu_dev->tensor_destroy(t_filter_grad_c);
+    }
+    return 0;
+}
 static int act_driver(int argc, char ** argv){
     arg_parser parser("act");
 
@@ -430,8 +591,10 @@ int main(int argc, char ** argv){
     int rtn = 0;
     if(op_type == "pooling")
         rtn = pooling_driver(argc, argv);
-    if(op_type == "act")
+    else if(op_type == "act")
         rtn = act_driver(argc, argv);
+    else if(op_type == "conv")
+        rtn = conv_driver(argc, argv);
 
     device_destroy(gpu_dev);
     device_destroy(cpu_dev);

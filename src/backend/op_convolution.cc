@@ -1,13 +1,5 @@
 #include "operator.hpp"
-
-static void im2col(const float* data_im, int num_outs, int im_height,
-                        int im_width, int dilation_h, int dilation_w,
-                        int filter_height, int filter_width, int stride_height,
-                        int stride_width, int padding_height, int padding_width,
-                        int col_height, int col_width, float* data_col)
-{
-    
-}
+#include "math.hpp"
 
 void op_convolution::forward(){
     assert(input && output && filter);
@@ -24,22 +16,49 @@ void op_convolution::forward(){
     int kernel_w = conv_desc->kernel[1];
     int pad_h    = conv_desc->padding[0];
     int pad_w    = conv_desc->padding[1];
+    int dilation_h = conv_desc->dilation[0];
+    int dilation_w = conv_desc->dilation[1];
     int groups   = conv_desc->groups;
+    int filters  = conv_desc->k;
 
+    bool need_im2col =  (kernel_h*kernel_w) != 1;
 
     if(!forward_prepared){
         forward_prepared = 1;
-        fwd_workspace_size = out_h*out_w*kernel_h*kernel_w*channel*data_type_unit(input->data_type) / groups;
-        fwd_workspace_mem = dev->ws->get(fwd_workspace_size, input->data_type);
-    }
-
-    for(int n=0;n<batch;n++){
-        for(int g=0;g<groups;g++){
-
+        if(need_im2col){
+            fwd_workspace_size = out_h*out_w*kernel_h*kernel_w*channel*data_type_unit(input->data_type) / groups;
+            fwd_workspace_mem = dev->ws->get(fwd_workspace_size, input->data_type);
         }
     }
 
+    int blas_m, blas_n, blas_k;
+    blas_m = filters;
+    blas_n = out_h*out_w;
+    blas_k = kernel_h*kernel_w*channel/groups;
+    for(int n=0;n<batch;n++){
+        for(int g=0;g<groups;g++){
+            float * im_ptr = (float*)input->mem + n*input_h*input_w*channel + g*input_h*input_w*channel/groups;
+            float * col_ptr = need_im2col?(float*)fwd_workspace_mem:(float*)im_ptr;
+            float * filter_ptr = (float*)filter->mem + g*filters*channel*kernel_h*kernel_w/groups;
+            float * out_ptr = (float*)output->mem + n*out_h*out_w*filters + g*out_h*out_w*filters/groups;
+            if(need_im2col){
+                math::im2col(im_ptr, channel, input_h, input_w,
+                    dilation_h, dilation_w, kernel_h, kernel_w,
+                    stride_h, stride_w, pad_h, pad_w,
+                    col_ptr);
+            }
+
+            math::cblas_sgemm(math::CblasRowMajor, math::CblasNoTrans, math::CblasNoTrans,
+                blas_m, blas_n, blas_k,
+                1.0f,
+                filter_ptr, blas_k,
+                col_ptr, blas_n,
+                .0f,
+                out_ptr, blas_n);
+        }
+    }
 }
+
 void op_convolution::backward(){
     
 }

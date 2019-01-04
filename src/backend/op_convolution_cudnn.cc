@@ -92,11 +92,15 @@ void op_convolution_cudnn::forward(){
             filter_desc,
             (const cudnnConvolutionDescriptor_t)conv_desc->desc,
             (const cudnnTensorDescriptor_t)output->desc, fwd_algo, &fwd_workspace_size));
-        fwd_workspace_mem = dev->ws->get(fwd_workspace_size, input->data_type);
+        fwd_workspace_mem = fwd_workspace_size?
+                            dev->ws->get(fwd_workspace_size, input->data_type):
+                            nullptr;
     }
     float alpha = 1.f;
     float beta = 0.f;
-    fwd_workspace_mem = dev->ws->get(fwd_workspace_size, input->data_type);
+    fwd_workspace_mem = fwd_workspace_size?
+                        dev->ws->get(fwd_workspace_size, input->data_type):
+                        nullptr;
     CHECK_CUDNN(cudnnConvolutionForward(dev_cuda->handle,
             &alpha,
             (const cudnnTensorDescriptor_t)input->desc, input->mem,
@@ -137,7 +141,9 @@ void op_convolution_cudnn::backward(){
             (const cudnnConvolutionDescriptor_t)conv_desc->desc,
             (const cudnnTensorDescriptor_t)input_grad->desc,
             bwd_data_algo, &bwd_data_workspace_size));
-        bwd_data_workspace_mem = dev->ws->get(bwd_data_workspace_size, input->data_type);
+        bwd_data_workspace_mem = bwd_data_workspace_size?
+                                dev->ws->get(bwd_data_workspace_size, input->data_type):
+                                nullptr;
 
 
         // find bwd filter algo
@@ -163,13 +169,17 @@ void op_convolution_cudnn::backward(){
             (const cudnnConvolutionDescriptor_t)conv_desc->desc,
             filter_desc,
             bwd_filter_algo, &bwd_filter_workspace_size));
-        bwd_filter_workspace_mem = dev->ws->get(bwd_filter_workspace_size, input->data_type);
+        bwd_filter_workspace_mem = bwd_filter_workspace_size?
+                                dev->ws->get(bwd_filter_workspace_size, input->data_type):
+                                nullptr;
     }
 
 
     float alpha = 1.f;
     float beta = 0.f;
-    bwd_data_workspace_mem = dev->ws->get(bwd_data_workspace_size, input->data_type);
+    bwd_data_workspace_mem = bwd_data_workspace_size?
+                                dev->ws->get(bwd_data_workspace_size, input->data_type):
+                                nullptr;
     CHECK_CUDNN(cudnnConvolutionBackwardData(dev_cuda->handle,
             &alpha,
             (const cudnnFilterDescriptor_t)filter_desc, filter->mem,
@@ -178,7 +188,9 @@ void op_convolution_cudnn::backward(){
             bwd_data_algo, bwd_data_workspace_mem, bwd_data_workspace_size,
             &beta,
             (const cudnnTensorDescriptor_t)input_grad->desc, input_grad->mem));
-    bwd_filter_workspace_mem = dev->ws->get(bwd_filter_workspace_size, input->data_type);
+    bwd_filter_workspace_mem = bwd_filter_workspace_size?
+                                dev->ws->get(bwd_filter_workspace_size, input->data_type):
+                                nullptr;
     CHECK_CUDNN(cudnnConvolutionBackwardFilter(dev_cuda->handle,
             &alpha,
             (const cudnnTensorDescriptor_t)input->desc, input->mem,

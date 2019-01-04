@@ -24,9 +24,11 @@ std::ostream & log_to_stream(log_level level){
 
 workspace::workspace(device_base * dev_):dev(dev_){}
 workspace::~workspace(){
+    // CAUTION, device must not destroyed
     if(workspace_tensor)
         dev->tensor_destroy(workspace_tensor);
 }
+
 void * workspace::get(int bytes, tensor_data_type dt){
     return get_tensor(bytes, dt)->mem;
 }
@@ -112,5 +114,6 @@ device_base  * device_create(device_type type, int dev_id){
     return handle;
 }
 void device_destroy(device_base* handle){
+    handle->shutdown();
     delete handle;
 }

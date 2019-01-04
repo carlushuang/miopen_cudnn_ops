@@ -100,6 +100,7 @@ struct convolution_desc_t{
     int kernel[MAX_CONV_DIM];
     int stride[MAX_CONV_DIM];
     int padding[MAX_CONV_DIM];
+    int dilation[MAX_CONV_DIM];
     int groups;     // group_conv/dw_conv
     int k;          // number of filters, out feat map
     int input_c;    // input feat map
@@ -143,7 +144,18 @@ class device_base{
 public:
     device_type type;
     device_base(){ws = new workspace(this);}
-    virtual ~device_base(){delete ws;}
+    virtual ~device_base(){
+        if(ws){
+            LOG_E()<<"device ["<<(void*)this<<"] need call shutdown first"<<std::endl;
+        }
+    }
+    /*
+    * TODO: if destroy device without shutdown, workspace may not be able to free
+    */
+    virtual void shutdown(){
+        delete ws;
+        ws = nullptr;
+    }
 
     virtual tensor_t * tensor_create(int * dims, int n_dim, 
                     tensor_data_type data_type, tensor_layout layout)=0;
@@ -159,7 +171,7 @@ public:
     virtual activation_desc_t * activation_desc_create(activation_mode mode, float alpha)=0;
     virtual void activation_desc_destroy(activation_desc_t * act_desc)=0;
     virtual convolution_desc_t * convolution_desc_create(convolution_mode mode, tensor_data_type dt,
-        int * kernel, int * stride, int * padding, int n_dims,
+        int * kernel, int * stride, int * padding, int * dilation, int n_dims,
         int groups, int k, int input_c, int input_h, int input_w) = 0;
     virtual void convolution_desc_destroy(convolution_desc_t * conv_desc) = 0;
 
@@ -269,7 +281,7 @@ public:
     virtual activation_desc_t * activation_desc_create(activation_mode mode, float alpha);
     virtual void activation_desc_destroy(activation_desc_t * act_desc);
     virtual convolution_desc_t * convolution_desc_create(convolution_mode mode, tensor_data_type dt,
-        int * kernel, int * stride, int * padding, int n_dims,
+        int * kernel, int * stride, int * padding, int * dilation, int n_dims,
         int groups, int k, int input_c, int input_h, int input_w);
     virtual void convolution_desc_destroy(convolution_desc_t * conv_desc);
 };
@@ -384,7 +396,7 @@ public:
     virtual activation_desc_t * activation_desc_create(activation_mode mode, float alpha);
     virtual void activation_desc_destroy(activation_desc_t * act_desc);
     virtual convolution_desc_t * convolution_desc_create(convolution_mode mode, tensor_data_type dt,
-        int * kernel, int * stride, int * padding, int n_dims,
+        int * kernel, int * stride, int * padding, int * dilation, int n_dims,
         int groups, int k, int input_c, int input_h, int input_w);
     virtual void convolution_desc_destroy(convolution_desc_t * conv_desc);
 };
@@ -430,7 +442,7 @@ public:
         delete act_desc;
     }
     virtual convolution_desc_t * convolution_desc_create(convolution_mode mode, tensor_data_type dt,
-        int * kernel, int * stride, int * padding, int n_dims,
+        int * kernel, int * stride, int * padding, int * dilation, int n_dims,
         int groups, int k, int input_c, int input_h, int input_w){
         convolution_desc_t * conv_desc = new convolution_desc_t;
         conv_desc->mode = mode;
@@ -442,6 +454,8 @@ public:
         conv_desc->stride[1] = stride[1];
         conv_desc->padding[0] = padding[0];
         conv_desc->padding[1] = padding[1];
+        conv_desc->dilation[0] = dilation[0];
+        conv_desc->dilation[1] = dilation[1];
         conv_desc->groups = groups;
         conv_desc->k = k;
         conv_desc->input_c = input_c;
