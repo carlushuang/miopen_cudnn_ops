@@ -163,8 +163,8 @@ convolution_desc_t * device_cuda::convolution_desc_create(convolution_mode mode,
     CHECK_CUDNN(cudnnSetConvolutionNdDescriptor(desc, n_dims,
             padding, stride, dilation, to_cudnn_convolution_mode(mode), to_cudnn_data_type(dt)));
     
-    if(groups > 1)
-        CHECK_CUDNN(cudnnSetConvolutionGroupCount(desc, groups));
+    //if(groups > 1)
+    CHECK_CUDNN(cudnnSetConvolutionGroupCount(desc, groups));
 
     convolution_desc_t * conv_desc = new convolution_desc_t;
     conv_desc->mode = mode;
@@ -191,4 +191,34 @@ void device_cuda::convolution_desc_destroy(convolution_desc_t * conv_desc)
 {
     CHECK_CUDNN(cudnnDestroyConvolutionDescriptor((cudnnConvolutionDescriptor_t)conv_desc->desc));
     delete conv_desc;
+}
+
+void dump_cudnn_convolution_desc(const cudnnConvolutionDescriptor_t conv_desc){
+    int dims;
+    int pad[2];
+    int stride[2];
+    int dilation[2];
+    cudnnConvolutionMode_t conv_mode;
+    cudnnDataType_t dt;
+
+    CHECK_CUDNN(cudnnGetConvolutionNdDescriptor(conv_desc,
+                2, &dims, pad, stride, dilation, &conv_mode, &dt));
+    std::cout<<"<conv desc> dim:"<<dims<<", pad:"<<pad[0]<<"-"<<pad[1]<<", stride:"<<stride[0]<<"-"<<stride[1]<<
+        ", dilation:"<<dilation[0]<<"-"<<dilation[1]<<", mode:"<<conv_mode<<", dt:"<<dt<<std::endl;
+}
+void dump_cudnn_filter_desc(const cudnnFilterDescriptor_t filter_desc){
+    cudnnDataType_t dt;
+    cudnnTensorFormat_t fmt;
+    int k,c,h,w;
+    CHECK_CUDNN(cudnnGetFilter4dDescriptor(filter_desc, &dt, &fmt, &k, &c, &h, &w));
+    std::cout<<"<filter desc> dt:"<<dt<<", fmt:"<<fmt<<", k:"<<k<<", c:"<<c<<", h:"<<h<<", w:"<<w<<std::endl;
+}
+void dump_cudnn_tensor_desc(const cudnnTensorDescriptor_t tensor_desc){
+    int n,c,h,w;
+    int n_stride, c_stride, h_stride, w_stride;
+    cudnnDataType_t dt;
+    CHECK_CUDNN(cudnnGetTensor4dDescriptor(tensor_desc, &dt, &n, &c, &h, &w, 
+        &n_stride, &c_stride, &h_stride, &w_stride));
+    std::cout<<"<tensor desc> dt:"<<dt<<", n:"<<n<<", c:"<<c<<", h:"<<h<<", w:"<<w<<
+        ", n_stride:"<<n_stride<<", c_stride:"<<c_stride<<", h_stride:"<<h_stride<<", w_stride:"<<w_stride<<std::endl;
 }

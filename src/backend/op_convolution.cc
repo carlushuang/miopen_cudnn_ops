@@ -23,6 +23,12 @@ void op_convolution::forward(){
 
     bool need_im2col =  (kernel_h*kernel_w) != 1;
 
+#if 0
+    std::cout<<"n:"<<batch<<", c:"<<channel<<", h:"<<input_h<<", w:"<<input_w<<", k:"<<filters<<", g:"<<groups<<", kh:"<<kernel_h<<
+        ", kw:"<<kernel_w<<", sh:"<<stride_h<<", sw:"<<stride_w<<", ph:"<<pad_h<<", pw:"<<pad_w<<", dh:"<<dilation_h<<", dw:"<<dilation_w<<
+        ", out_h:"<<out_h<<", out_w:"<<out_w<<std::endl;
+#endif
+
     if(!forward_prepared){
         forward_prepared = 1;
         if(need_im2col){
@@ -31,18 +37,20 @@ void op_convolution::forward(){
         }
     }
 
+    fwd_workspace_mem = dev->ws->get(fwd_workspace_size, input->data_type);
+
     int blas_m, blas_n, blas_k;
-    blas_m = filters;
+    blas_m = filters/groups;
     blas_n = out_h*out_w;
     blas_k = kernel_h*kernel_w*channel/groups;
     for(int n=0;n<batch;n++){
         for(int g=0;g<groups;g++){
             float * im_ptr = (float*)input->mem + n*input_h*input_w*channel + g*input_h*input_w*channel/groups;
             float * col_ptr = need_im2col?(float*)fwd_workspace_mem:(float*)im_ptr;
-            float * filter_ptr = (float*)filter->mem + g*filters*channel*kernel_h*kernel_w/groups;
+            float * filter_ptr = (float*)filter->mem + g*(filters/groups)*(channel/groups)*kernel_h*kernel_w;
             float * out_ptr = (float*)output->mem + n*out_h*out_w*filters + g*out_h*out_w*filters/groups;
             if(need_im2col){
-                math::im2col(im_ptr, channel, input_h, input_w,
+                math::im2col(im_ptr, channel/groups, input_h, input_w,
                     dilation_h, dilation_w, kernel_h, kernel_w,
                     stride_h, stride_w, pad_h, pad_w,
                     col_ptr);

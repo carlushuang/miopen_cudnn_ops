@@ -4,7 +4,9 @@ op_convolution_cudnn::op_convolution_cudnn(void * desc) : op_convolution(desc){
 
 }
 op_convolution_cudnn::~op_convolution_cudnn(){
-
+    if(forward_prepared){
+        CHECK_CUDNN(cudnnDestroyFilterDescriptor(filter_desc));
+    }
 }
 
 #define ALGO_CASE_STR(algo) \
@@ -65,9 +67,13 @@ void op_convolution_cudnn::forward(){
         forward_prepared = 1;
         CHECK_CUDNN(cudnnCreateFilterDescriptor(&filter_desc));
         CHECK_CUDNN(cudnnSetFilter4dDescriptor(filter_desc,
-	                to_cudnn_data_type(input->data_type),
-                    to_cudnn_layout(input->layout),
-                    conv_desc->k, conv_desc->input_c, conv_desc->kernel[0], conv_desc->kernel[1]));
+	                to_cudnn_data_type(filter->data_type),
+                    /* CUDNN_TENSOR_NCHW->KCRS, K->out feature map, C->input feat map, R->row per filter, S->col per filter*/
+                    to_cudnn_layout(filter->layout), 
+                    conv_desc->k,
+                    //https://docs.nvidia.com/deeplearning/sdk/cudnn-developer-guide/index.html#grouped-convolutions
+                    conv_desc->input_c/conv_desc->groups, 
+                    conv_desc->kernel[0], conv_desc->kernel[1]));
 
         // find fwd algo
         cudnnConvolutionFwdAlgoPerf_t perfs[4];
@@ -78,12 +84,14 @@ void op_convolution_cudnn::forward(){
             (const cudnnConvolutionDescriptor_t)conv_desc->desc,
             (const cudnnTensorDescriptor_t)output->desc,
             4, &returned_algos, perfs));
+#if 0
         LOG_I()<<" found cudnnConv "<<returned_algos<<" fwd algo, using "<<perfs[0].algo<<"("<<
             to_cudnn_fwd_algo_name(perfs[0].algo)<<")"<<std::endl;
         for (int i = 0; i < returned_algos; ++i) {
             LOG_I()<<"    " << i << ": " << perfs[i].algo<< "(" <<to_cudnn_fwd_algo_name(perfs[i].algo)
                  << ") - time: " << perfs[i].time << ", Memory: " << perfs[i].memory<<std::endl;
         }
+#endif
         fwd_algo = perfs[0].algo;
 
         // find workspace
@@ -96,8 +104,15 @@ void op_convolution_cudnn::forward(){
                             dev->ws->get(fwd_workspace_size, input->data_type):
                             nullptr;
     }
+#if 0
+    dump_cudnn_convolution_desc((const cudnnConvolutionDescriptor_t)conv_desc->desc);
+    dump_cudnn_filter_desc(filter_desc);
+    dump_cudnn_tensor_desc((const cudnnTensorDescriptor_t)input->desc);
+    dump_cudnn_tensor_desc((const cudnnTensorDescriptor_t)filter->desc);
+    dump_cudnn_tensor_desc((const cudnnTensorDescriptor_t)output->desc);
+#endif
     float alpha = 1.f;
-    float beta = 0.f;
+    float beta = .0f;
     fwd_workspace_mem = fwd_workspace_size?
                         dev->ws->get(fwd_workspace_size, input->data_type):
                         nullptr;

@@ -1,5 +1,5 @@
 #include "math.hpp"
-
+#include <iostream>
 namespace math {
 
 
@@ -41,19 +41,22 @@ void im2col(const float* data_im,
             int im_h_cur = h * stride_h - pad_h + h_offset * dilation_h;
             for(int w=0;w<out_w;w++){
                 int im_w_cur = w * stride_w - pad_w + w_offset * dilation_w;
-                int im_idx = im_c_cur*im_h*im_w + im_h_cur*im_h + im_w_cur;
+                int im_idx = im_c_cur*im_h*im_w + im_h_cur*im_w + im_w_cur;
                 int out_idx = c*out_h*out_w + h*out_w + w;
                 data_col[out_idx] = (im_h_cur < 0 || im_h_cur >= im_h || im_w_cur<0 || im_w_cur >= im_w) ?
                                     (float).0f:data_im[im_idx];
             }
         }
     }
-}
+} 
 
 
-
-
-
+// https://software.intel.com/en-us/mkl-developer-reference-c-cblas-gemm
+/*
+* a: m row * k col
+* b: k row * n col
+* c: m row * n col
+*/
 void cblas_sgemm (const CBLAS_LAYOUT Layout, const CBLAS_TRANSPOSE transa, const CBLAS_TRANSPOSE transb,
     const int m, const int n, const int k,
     const float alpha,
@@ -65,11 +68,11 @@ void cblas_sgemm (const CBLAS_LAYOUT Layout, const CBLAS_TRANSPOSE transa, const
     if(Layout == CblasRowMajor){
         int im, in, ik;
         auto a_idx_func = (transa == CblasNoTrans || transa == CblasConjNoTrans)?
-                [](int m, int k, int lda){return m*lda+k;}:
-                [](int m, int k, int lda){return k*lda+m;};
+                [](int m_, int k_, int lda_){return m_*lda_+k_;}:
+                [](int m_, int k_, int lda_){return k_*lda_+m_;};
         auto b_idx_func = (transb == CblasNoTrans || transb == CblasConjNoTrans)?
-                [](int n, int k, int ldb){return k*ldb+n;}:
-                [](int n, int k, int ldb){return n*ldb+k;};
+                [](int n_, int k_, int ldb_){return k_*ldb_+n_;}:
+                [](int n_, int k_, int ldb_){return n_*ldb_+k_;};
         for(im=0;im<m;im++){
             for(in=0;in<n;in++){
                 int c_idx = im*ldc+in;
@@ -85,11 +88,11 @@ void cblas_sgemm (const CBLAS_LAYOUT Layout, const CBLAS_TRANSPOSE transa, const
     }else{
         int im, in, ik;
         auto a_idx_func = (transa == CblasNoTrans || transa == CblasConjNoTrans)?
-                [](int m, int k, int lda){return k*lda+m;}:
-                [](int m, int k, int lda){return m*lda+k;};
+                [](int m_, int k_, int lda_){return k_*lda_+m_;}:
+                [](int m_, int k_, int lda_){return m_*lda_+k_;};
         auto b_idx_func = (transb == CblasNoTrans || transb == CblasConjNoTrans)?
-                [](int n, int k, int ldb){return n*ldb+k;}:
-                [](int n, int k, int ldb){return k*ldb+n;};
+                [](int n_, int k_, int ldb_){return n_*ldb_+k_;}:
+                [](int n_, int k_, int ldb_){return k_*ldb_+n_;};
         for( in=0;in<n;in++ ){
             for( im=0;im<m;im++ ){
                 int c_idx = in*ldc+im;

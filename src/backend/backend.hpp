@@ -102,7 +102,7 @@ struct convolution_desc_t{
     int padding[MAX_CONV_DIM];
     int dilation[MAX_CONV_DIM];
     int groups;     // group_conv/dw_conv
-    int k;          // number of filters, out feat map
+    int k;          // filter number, out feature maps
     int input_c;    // input feat map
     int input_h;
     int input_w;
@@ -365,15 +365,16 @@ static inline cudnnActivationMode_t to_cudnn_activation_mode(activation_mode mod
 static inline cudnnConvolutionMode_t to_cudnn_convolution_mode(convolution_mode mode){
     switch(mode){
         case CONVOLUTION_CONV:
-            CUDNN_CONVOLUTION;
+            return CUDNN_CONVOLUTION;
         break;
         case CONVOLUTION_CROSS_CORRELATION:
-            CUDNN_CROSS_CORRELATION;
+            return CUDNN_CROSS_CORRELATION;
         break;
         default:
             assert(0 && "unsupported conv mode");
         break;
     }
+    return CUDNN_CROSS_CORRELATION;
 }
 class device_cuda : public device_base{
 public:
@@ -400,6 +401,11 @@ public:
         int groups, int k, int input_c, int input_h, int input_w);
     virtual void convolution_desc_destroy(convolution_desc_t * conv_desc);
 };
+
+/* utility */
+void dump_cudnn_convolution_desc(const cudnnConvolutionDescriptor_t conv_desc);
+void dump_cudnn_filter_desc(const cudnnFilterDescriptor_t filter_desc);
+void dump_cudnn_tensor_desc(const cudnnTensorDescriptor_t tensor_desc);
 #endif
 
 class device_c : public device_base{

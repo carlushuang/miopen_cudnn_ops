@@ -294,7 +294,7 @@ static int conv_driver(int argc, char ** argv){
     parser.insert_arg("x", "kernel size", "3");
     parser.insert_arg("g", "group", "1");
     parser.insert_arg("d", "dilation (experiment)", "1");
-    parser.insert_arg("k", "filter number", "32");
+    parser.insert_arg("k", "filters", "32");
     parser.insert_arg("m", "conv mode"
             " conv/cross_correlation",
             "cross_correlation");
@@ -318,6 +318,9 @@ static int conv_driver(int argc, char ** argv){
     std::string cmode = parser.get_arg("m");
     int is_fwd = parser.get_arg_int("f");
 
+    assert( (input_c%groups)==0 && "group conv must evenly devide input channel!");
+    assert( (filters%groups)==0 && "group conv must evenly devide filter number!");
+
     convolution_mode conv_mode;
     if(cmode=="conv") conv_mode = CONVOLUTION_CONV;
     else if (cmode == "cross_correlation") conv_mode = CONVOLUTION_CROSS_CORRELATION;
@@ -339,7 +342,7 @@ static int conv_driver(int argc, char ** argv){
     tensor_t *t_in_grad_c, *t_out_grad_c, *t_filter_grad_c;
     operator_base *op_conv, *op_conv_c;
     int t_in_dim[4] = {batch,input_c,input_h,input_w};
-    int t_filter_dim[4] = {filters, input_c, ksize, ksize};
+    int t_filter_dim[4] = {filters, input_c/groups, ksize, ksize};
     int t_out_dim[4];
 
     // create gpu tensors
@@ -380,12 +383,18 @@ static int conv_driver(int argc, char ** argv){
 
     // prepare input
     rand_float((float*)t_in_c->mem, t_in_c->elem());
+    rand_float((float*)t_filter_c->mem, t_filter_c->elem());
     gpu_dev->tensor_copy(t_in, t_in_c->mem, t_in_c->bytes(), TENSOR_COPY_H2D);
+    gpu_dev->tensor_copy(t_filter, t_filter_c->mem, t_filter_c->bytes(), TENSOR_COPY_H2D);
     if(!is_fwd){
         rand_float((float*)t_out_grad_c->mem, t_out_grad_c->elem());
         gpu_dev->tensor_copy(t_out_grad, t_out_grad_c->mem, t_out_grad_c->bytes(), TENSOR_COPY_H2D);
+        rand_float((float*)t_filter_grad_c->mem, t_filter_grad_c->elem());
+        gpu_dev->tensor_copy(t_filter_grad, t_filter_grad_c->mem, t_filter_grad_c->bytes(), TENSOR_COPY_H2D);
 
+        //cpu_dev->tensor_set(t_filter_grad_c, 0);
         cpu_dev->tensor_set(t_in_grad_c, 0);
+        //gpu_dev->tensor_set(t_filter_grad, 0);
         gpu_dev->tensor_set(t_in_grad, 0);
     }
 

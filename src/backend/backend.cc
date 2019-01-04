@@ -34,14 +34,15 @@ void * workspace::get(int bytes, tensor_data_type dt){
 }
 tensor_t * workspace::get_tensor(int bytes, tensor_data_type dt){
     assert(bytes != 0);
+    int elem = bytes / data_type_unit(dt);
     if(!workspace_tensor){
-        workspace_tensor = dev->tensor_create(&bytes, 1, dt, TENSOR_LAYOUT_1D);
+        workspace_tensor = dev->tensor_create(&elem, 1, dt, TENSOR_LAYOUT_1D);
         cur_byte = bytes;
     }
     else{
         if(bytes > cur_byte){
             dev->tensor_destroy(workspace_tensor);
-            workspace_tensor = dev->tensor_create(&bytes, 1, dt, TENSOR_LAYOUT_1D);
+            workspace_tensor = dev->tensor_create(&elem, 1, dt, TENSOR_LAYOUT_1D);
             cur_byte = bytes;
         }
     }

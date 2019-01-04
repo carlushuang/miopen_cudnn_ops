@@ -17,3 +17,10 @@ ${OP_DRIVER_DIR}/op_driver act -f 0 -m clipped-relu -a 0.5
 ${OP_DRIVER_DIR}/op_driver act -f 0 -m clipped-relu -a 0.01
 ${OP_DRIVER_DIR}/op_driver act -f 0 -m elu -a 0.4
 ${OP_DRIVER_DIR}/op_driver act -f 0 -m elu -a 0.02
+
+${OP_DRIVER_DIR}/op_driver conv -f 1 -p 1 -s 1 -d 1  -x 3  -k 32 -w 128 -h 128 -c 32
+${OP_DRIVER_DIR}/op_driver conv -f 1 -p 1 -s 1 -d 1  -x 3  -k 32 -w 128 -h 128 -c 32 -g 4
+${OP_DRIVER_DIR}/op_driver conv -f 1 -p 1 -s 1 -d 1  -x 3  -k 32 -w 128 -h 128 -c 32 -g 32
+${OP_DRIVER_DIR}/op_driver conv -f 1 -p 0 -s 1 -d 1  -x 1  -k 32 -w 128 -h 128 -c 32
+${OP_DRIVER_DIR}/op_driver conv -f 1 -p 0 -s 1 -d 1  -x 1  -k 32 -w 128 -h 128 -c 32 -g 4
+${OP_DRIVER_DIR}/op_driver conv -f 1 -p 0 -s 1 -d 1  -x 1  -k 32 -w 128 -h 128 -c 32 -g 32

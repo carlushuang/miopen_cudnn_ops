@@ -25,12 +25,7 @@ typedef enum {
     CblasConjNoTrans,
 } CBLAS_TRANSPOSE;
 
-// https://software.intel.com/en-us/mkl-developer-reference-c-cblas-gemm
-/*
-* a: m row * k col
-* b: k row * n col
-* c: m row * n col
-*/
+
 void cblas_sgemm (const CBLAS_LAYOUT Layout, const CBLAS_TRANSPOSE transa, const CBLAS_TRANSPOSE transb,
     const int m, const int n, const int k,
     const float alpha,
