@@ -74,7 +74,9 @@ public:
     ~op_convolution_miopen();
     virtual void forward();
     virtual void backward();
-
+    miopenConvFwdAlgorithm_t fwd_algo;
+    miopenConvBwdWeightsAlgorithm_t bwd_weights_algo;
+    miopenConvBwdDataAlgorithm_t bwd_data_algo;
 };
 #endif
 #ifdef WITH_CUDNN
@@ -130,6 +132,8 @@ public:
     virtual void forward();
     virtual void backward();
 
+    size_t workspace_size;
+    void * workspace_mem;
 };
 #endif
 #ifdef WITH_CUDNN

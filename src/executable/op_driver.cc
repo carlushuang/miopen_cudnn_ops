@@ -40,8 +40,6 @@ static device_base * determin_device(){
 }
 
 static void rand_float(float * vec, int len){
-    int i;
-
     static std::random_device rd;
     static std::mt19937 mt(rd());
     static std::uniform_real_distribution<float> dist(-1.f, 1.f);

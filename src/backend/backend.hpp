@@ -285,6 +285,8 @@ public:
         int groups, int k, int input_c, int input_h, int input_w);
     virtual void convolution_desc_destroy(convolution_desc_t * conv_desc);
 };
+void dump_miopen_convolution_desc(const miopenConvolutionDescriptor_t conv_desc);
+void dump_miopen_tensor_desc(const miopenTensorDescriptor_t tensor_desc);
 #endif
 
 #ifdef WITH_CUDNN

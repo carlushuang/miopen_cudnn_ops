@@ -107,7 +107,7 @@ void device_hip::tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind 
         hipDeviceSynchronize();
     }
     else if (copy_kind == TENSOR_COPY_D2D){
-
+        assert(0 && "tobe implement");
     }
 }
 void device_hip::tensor_destroy(tensor_t * tensor){
@@ -170,4 +170,70 @@ activation_desc_t * device_hip::activation_desc_create(activation_mode mode, flo
 void device_hip::activation_desc_destroy(activation_desc_t * act_desc){
     CHECK_MIO(miopenDestroyActivationDescriptor((miopenActivationDescriptor_t)act_desc->desc));
     delete act_desc;
+}
+convolution_desc_t * device_hip::convolution_desc_create(convolution_mode mode, tensor_data_type dt,
+        int * kernel, int * stride, int * padding, int * dilation, int n_dims,
+        int groups, int k, int input_c, int input_h, int input_w)
+{
+
+    assert(n_dims == 2 && "current only support 2d conv");
+    miopenConvolutionDescriptor_t desc;
+    CHECK_MIO(miopenCreateConvolutionDescriptor(&desc));
+
+    miopenConvolutionMode_t conv_mode = to_miopen_convolution_mode(mode);
+    // we wrap the conv mode
+    if(groups > 1){
+        conv_mode = miopenGroupConv;
+        if(groups == input_c)
+            conv_mode = miopenDepthwise;
+    }
+
+    CHECK_MIO(miopenInitConvolutionDescriptor(desc, conv_mode, padding[0], padding[1],
+        stride[0], stride[1], dilation[0], dilation[1]));
+
+    if(groups > 1)
+        CHECK_MIO(miopenSetConvolutionGroupCount(desc, groups));
+
+    convolution_desc_t * conv_desc = new convolution_desc_t;
+    conv_desc->mode = mode;
+    conv_desc->n_dims = n_dims;
+
+    conv_desc->kernel[0] = kernel[0];
+    conv_desc->kernel[1] = kernel[1];
+    conv_desc->stride[0] = stride[0];
+    conv_desc->stride[1] = stride[1];
+    conv_desc->padding[0] = padding[0];
+    conv_desc->padding[1] = padding[1];
+    conv_desc->dilation[0] = dilation[0];
+    conv_desc->dilation[1] = dilation[1];
+    conv_desc->groups = groups;
+    conv_desc->k = k;
+    conv_desc->input_c = input_c;
+    conv_desc->input_h = input_h;
+    conv_desc->input_w = input_w;
+    conv_desc->desc = desc;
+
+    return conv_desc;
+}
+void device_hip::convolution_desc_destroy(convolution_desc_t * conv_desc)
+{
+    CHECK_MIO(miopenDestroyConvolutionDescriptor((miopenConvolutionDescriptor_t)conv_desc->desc ));
+    delete conv_desc;
+}
+void dump_miopen_convolution_desc(const miopenConvolutionDescriptor_t conv_desc){
+    miopenConvolutionMode_t conv_mode;
+    int pad_h, pad_w, u, v, dilation_h, dilation_w;
+    CHECK_MIO(miopenGetConvolutionDescriptor(conv_desc, &conv_mode,
+        &pad_h, &pad_w, &u, &v, &dilation_h, &dilation_w));
+    std::cout<<"<conv desc> mode:"<<conv_mode<<", pad_h:"<<pad_h<<", pad_w:"<<pad_w<<
+        ", u:"<<u<<", v:"<<v<<", dilation_h:"<<dilation_h<<", dilation_w:"<<dilation_w<<std::endl;
+}
+void dump_miopen_tensor_desc(const miopenTensorDescriptor_t tensor_desc){
+    miopenDataType_t dt;
+    int n,c,h,w;
+    int n_stride, c_stride, h_stride, w_stride;
+    CHECK_MIO(miopenGet4dTensorDescriptor(tensor_desc, &dt, &n, &c, &h, &w,
+        &n_stride, &c_stride, &h_stride, &w_stride));
+    std::cout<<"<tensor desc> dt:"<<dt<<", n:"<<n<<", c:"<<c<<", h:"<<h<<", w:"<<w<<
+        ", n_stride:"<<n_stride<<", c_stride:"<<c_stride<<", h_stride:"<<h_stride<<", w_stride:"<<w_stride<<std::endl;
 }
