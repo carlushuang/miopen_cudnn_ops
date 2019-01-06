@@ -50,7 +50,7 @@ void op_convolution_miopen::forward(){
     device_hip * dev_hip = (device_hip *)dev;
     if(!forward_prepared){
         forward_prepared=1;
-
+#if 0
         {
             int out_n, out_c, out_h, out_w;
             CHECK_MIO(miopenGetConvolutionForwardOutputDim((miopenConvolutionDescriptor_t )conv_desc->desc,
@@ -64,19 +64,18 @@ void op_convolution_miopen::forward(){
         dump_miopen_tensor_desc((const miopenTensorDescriptor_t)filter->desc);
         dump_miopen_tensor_desc((const miopenTensorDescriptor_t)output->desc);
         dump_miopen_convolution_desc((const miopenConvolutionDescriptor_t )conv_desc->desc);
+#endif
 
-        std::cout<<"["<<__func__<<"] "<<__LINE__<<std::endl;
         CHECK_MIO(miopenConvolutionForwardGetWorkSpaceSize(dev_hip->handle,
                 (const miopenTensorDescriptor_t)filter->desc,
                 (const miopenTensorDescriptor_t)input->desc,
                 (const miopenConvolutionDescriptor_t )conv_desc->desc,
                 (const miopenTensorDescriptor_t)output->desc,
                 &fwd_workspace_size));
-        std::cout<<" -- request workspace size:"<<fwd_workspace_size<<std::endl;
+        //std::cout<<" -- request workspace size:"<<fwd_workspace_size<<std::endl;
         fwd_workspace_mem = fwd_workspace_size?
                         dev->ws->get(fwd_workspace_size, input->data_type):
                         nullptr;
-        std::cout<<"["<<__func__<<"] "<<__LINE__<<std::endl;
         miopenConvAlgoPerf_t perfs[4];
         int returned_algos;
         CHECK_MIO(miopenFindConvolutionForwardAlgorithm(dev_hip->handle,
@@ -86,7 +85,6 @@ void op_convolution_miopen::forward(){
                 (const miopenTensorDescriptor_t)output->desc, output->mem,
                 4, &returned_algos, perfs,
                 fwd_workspace_mem, fwd_workspace_size, false));
-        std::cout<<"["<<__func__<<"] "<<__LINE__<<std::endl;
 #if 1
         LOG_I()<<" found miopenConv "<<returned_algos<<" fwd algo, using "<<perfs[0].fwd_algo<<"("<<
             to_miopen_fwd_algo_name(perfs[0].fwd_algo)<<")"<<std::endl;
@@ -104,7 +102,6 @@ void op_convolution_miopen::forward(){
                         nullptr;
     float alpha = 1.f;
     float beta = .0f;
-    std::cout<<"["<<__func__<<"] "<<__LINE__<<std::endl;
     CHECK_MIO(miopenConvolutionForward(dev_hip->handle,
         &alpha,
         (const miopenTensorDescriptor_t)input->desc, input->mem,
@@ -114,7 +111,6 @@ void op_convolution_miopen::forward(){
         &beta,
         (const miopenTensorDescriptor_t)output->desc, output->mem,
         fwd_workspace_mem, fwd_workspace_size));
-    std::cout<<"["<<__func__<<"] "<<__LINE__<<std::endl;
 }
 void op_convolution_miopen::backward(){
 

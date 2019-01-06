@@ -51,7 +51,7 @@ enum tensor_copy_kind{
 
 #define MAX_TENSOR_DIM 4
 struct tensor_t{
-    int dim[MAX_TENSOR_DIM];
+    int dim[MAX_TENSOR_DIM] ={0};
     int n_dims;
     int bytes() const {
         int b=1;
