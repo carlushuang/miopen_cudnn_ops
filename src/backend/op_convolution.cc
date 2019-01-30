@@ -21,7 +21,8 @@ void op_convolution::forward(){
     int groups   = conv_desc->groups;
     int filters  = conv_desc->k;
 
-    bool need_im2col =  (kernel_h*kernel_w) != 1;
+    // TODO: only 1x1 conv with 0 padding, 1 dilation may not use im2col
+    bool need_im2col = true;
 
 #if 0
     std::cout<<"n:"<<batch<<", c:"<<channel<<", h:"<<input_h<<", w:"<<input_w<<", k:"<<filters<<", g:"<<groups<<", kh:"<<kernel_h<<

@@ -50,22 +50,21 @@ public:
         auto conv_size_func = [](int in_size, int pad, int dilation, int ksize, int stride){
             return (in_size + 2*pad- dilation*(ksize-1) -1)/stride + 1;
         };
-        int dilation[2] = {1, 1};
         out_dim[2] = conv_size_func(input->dim[2], conv_desc->padding[0],
-                dilation[0], conv_desc->kernel[0], conv_desc->stride[0]);
+                conv_desc->dilation[0], conv_desc->kernel[0], conv_desc->stride[0]);
         out_dim[3] = conv_size_func(input->dim[3], conv_desc->padding[1],
-                dilation[1], conv_desc->kernel[1], conv_desc->stride[1]);
+                conv_desc->dilation[1], conv_desc->kernel[1], conv_desc->stride[1]);
     }
 
     convolution_desc_t * conv_desc;
 
-    size_t fwd_workspace_size;
-    void * fwd_workspace_mem;
+    size_t fwd_workspace_size ={0};
+    void * fwd_workspace_mem ={nullptr};
 
-    size_t bwd_data_workspace_size;
-    void * bwd_data_workspace_mem;
-    size_t bwd_filter_workspace_size;
-    void * bwd_filter_workspace_mem;
+    size_t bwd_data_workspace_size ={0};
+    void * bwd_data_workspace_mem ={nullptr};
+    size_t bwd_filter_workspace_size ={0};
+    void * bwd_filter_workspace_mem ={nullptr};
 };
 #ifdef WITH_MIOPEN
 class op_convolution_miopen : public op_convolution{

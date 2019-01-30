@@ -75,15 +75,31 @@ void op_convolution_cudnn::forward(){
                     conv_desc->input_c/conv_desc->groups, 
                     conv_desc->kernel[0], conv_desc->kernel[1]));
 
+        // TODO: set CUDNN_TENSOR_OP_MATH can use tensor core if available, here disable it
+        CHECK_CUDNN(cudnnSetConvolutionMathType((const cudnnConvolutionDescriptor_t)conv_desc->desc,
+                CUDNN_DEFAULT_MATH));
+
         // find fwd algo
         cudnnConvolutionFwdAlgoPerf_t perfs[4];
         int returned_algos;
+
         CHECK_CUDNN(cudnnFindConvolutionForwardAlgorithm(dev_cuda->handle,
             (const cudnnTensorDescriptor_t)input->desc,
             filter_desc,
             (const cudnnConvolutionDescriptor_t)conv_desc->desc,
             (const cudnnTensorDescriptor_t)output->desc,
             4, &returned_algos, perfs));
+
+#if 0
+        CHECK_CUDNN(cudnnGetConvolutionForwardAlgorithm(dev_cuda->handle,
+            (const cudnnTensorDescriptor_t)input->desc,
+            filter_desc,
+            (const cudnnConvolutionDescriptor_t)conv_desc->desc,
+            (const cudnnTensorDescriptor_t)output->desc,
+            CUDNN_CONVOLUTION_FWD_PREFER_FASTEST,
+            0,
+            &algo));
+#endif
 #if 0
         LOG_I()<<" found cudnnConv "<<returned_algos<<" fwd algo, using "<<perfs[0].algo<<"("<<
             to_cudnn_fwd_algo_name(perfs[0].algo)<<")"<<std::endl;
