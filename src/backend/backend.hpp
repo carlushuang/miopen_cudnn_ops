@@ -140,6 +140,16 @@ private:
     tensor_t * workspace_tensor ={nullptr};
 };
 
+class device_timer_t{
+public:
+    device_timer_t(){}
+    virtual ~device_timer_t(){}
+    virtual void reset(){}
+    virtual void start(){}
+    virtual void stop(){}
+    virtual double elapsed(){ return 0;}      // return in ms
+};
+
 class device_base{
 public:
     device_type type;
@@ -156,6 +166,9 @@ public:
         delete ws;
         ws = nullptr;
     }
+
+    virtual device_timer_t * device_timer_create() = 0;
+    virtual void device_timer_destroy(device_timer_t * dt) = 0;
 
     virtual tensor_t * tensor_create(int * dims, int n_dim, 
                     tensor_data_type data_type, tensor_layout layout)=0;
@@ -267,6 +280,9 @@ public:
 
     device_hip(int dev_id);
     ~device_hip();
+    virtual device_timer_t * device_timer_create();
+    virtual void device_timer_destroy(device_timer_t * dt);
+
     virtual tensor_t * tensor_create(int * dims, int n_dim, 
                     tensor_data_type data_type, tensor_layout layout);
     virtual void tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind);
@@ -385,6 +401,8 @@ public:
     int id;
     cudaStream_t queue;
     cudnnHandle_t handle;
+    virtual device_timer_t * device_timer_create(){}
+    virtual void device_timer_destroy(device_timer_t * dt){}
 
     virtual tensor_t * tensor_create(int * dims, int n_dim, 
                     tensor_data_type data_type, tensor_layout layout);
@@ -414,6 +432,8 @@ class device_c : public device_base{
 public:
     device_c();
     ~device_c();
+    virtual device_timer_t * device_timer_create(){return nullptr;}
+    virtual void device_timer_destroy(device_timer_t * dt){}
     virtual tensor_t * tensor_create(int * dims, int n_dim, 
                     tensor_data_type data_type, tensor_layout layout);
     virtual void tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind);

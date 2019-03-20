@@ -26,6 +26,44 @@ public:
 };
 #define to_miopen_handle(handle) static_cast<miopen_handle_t*>(handle)
 
+
+class device_timer_hip: public device_timer_t{
+public:
+    device_timer_hip(){}
+    virtual ~device_timer_hip(){
+        reset();
+    }
+    virtual void reset(){
+        if(event_created){
+            CHECK_HIP(hipEventDestroy(start_ev));
+            CHECK_HIP(hipEventDestroy(stop_ev));
+            event_created = false;
+        }
+    }
+    virtual void start(){
+        reset();
+        CHECK_HIP(hipEventCreate(&start_ev));
+        CHECK_HIP(hipEventCreate(&stop_ev));
+        event_created = true;
+
+        CHECK_HIP(hipDeviceSynchronize());
+        CHECK_HIP(hipEventRecord( start_ev, queue ));
+    }
+    virtual void stop(){
+        CHECK_HIP(hipEventRecord( stop_ev, queue ));
+        CHECK_HIP(hipEventSynchronize(stop_ev));
+    }
+    virtual double elapsed(){
+        float ms;
+        CHECK_HIP(hipEventElapsedTime(&ms,start_ev, stop_ev));
+        return (double)ms;
+    }
+
+    hipStream_t queue = NULL;
+    hipEvent_t start_ev, stop_ev;
+    bool event_created = false;     // stupid flag to control event creation
+};
+
 device_hip::device_hip(int dev_id){
     this->type = DEVICE_HIP;
     int devcount;
@@ -51,7 +89,16 @@ device_hip::device_hip(int dev_id){
 device_hip::~device_hip(){
     miopenDestroy(this->handle);
 }
-
+device_timer_t * device_hip::device_timer_create(){
+    device_timer_hip * dt = new device_timer_hip;
+    dt->queue = this->queue;
+    return dt;
+}
+void device_hip::device_timer_destroy(device_timer_t * dt){
+    if(!dt)
+        return ;
+    delete (device_timer_hip*)dt;
+}
 tensor_t * device_hip::tensor_create(int * dims, int n_dim, 
         tensor_data_type data_type, tensor_layout layout){
 

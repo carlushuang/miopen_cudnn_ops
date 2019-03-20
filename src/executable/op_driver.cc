@@ -396,7 +396,20 @@ static int conv_driver(int argc, char ** argv){
         gpu_dev->tensor_set(t_in_grad, 0);
     }
 
-    op_conv->forward();
+    device_timer_t * dt = gpu_dev->device_timer_create();
+    //op_conv->forward();
+    for(int l=0;l<2;l++){
+        op_conv->forward();
+    }
+    dt->start();
+    for(int l=0;l<5;l++){
+        op_conv->forward();
+    }
+    dt->stop();
+    double cost_per_loop = dt->elapsed()/5.0;
+    std::cout<<"convolution fwd gpu cost "<<cost_per_loop<<"ms average"<<std::endl;
+    gpu_dev->device_timer_destroy(dt);
+
     if(!is_fwd)
         op_conv->backward();
     //validation
