@@ -15,6 +15,8 @@ public:
     virtual ~operator_base(){}
     virtual void forward() = 0;
     virtual void backward() = 0;
+    virtual void backward_data(){}
+    virtual void backward_filter(){}
 
     virtual void infer_shape(int * out_dim){}
 
@@ -31,6 +33,8 @@ public:
 
     int forward_prepared ={0};
     int backward_prepared ={0};
+    int backward_data_prepared ={0};
+    int backward_filter_prepared ={0};
 };
 /*****************************************************************************
  * convolution op
@@ -42,6 +46,8 @@ public:
     ~op_convolution(){}
     virtual void forward();
     virtual void backward();
+    virtual void backward_data();
+    virtual void backward_filter();
     virtual void infer_shape(int * out_dim){
         assert(input && conv_desc);
         out_dim[0] = input->dim[0];
@@ -73,6 +79,8 @@ public:
     ~op_convolution_miopen();
     virtual void forward();
     virtual void backward();
+    virtual void backward_data();
+    virtual void backward_filter();
     miopenConvFwdAlgorithm_t fwd_algo;
     miopenConvBwdWeightsAlgorithm_t bwd_weights_algo;
     miopenConvBwdDataAlgorithm_t bwd_data_algo;
@@ -85,6 +93,8 @@ public:
     ~op_convolution_cudnn();
     virtual void forward();
     virtual void backward();
+    virtual void backward_data();
+    virtual void backward_filter();
     cudnnFilterDescriptor_t filter_desc;
     cudnnConvolutionFwdAlgo_t fwd_algo;
     cudnnConvolutionBwdFilterAlgo_t bwd_filter_algo;

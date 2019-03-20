@@ -10,6 +10,9 @@
 
 #include <unistd.h>
 
+#define LOOP_WARMUP 2
+#define LOOP_ITR    5
+
 static device_base * determin_device(){
     std::string backend;
 #ifdef WITH_MIOPEN
@@ -398,20 +401,45 @@ static int conv_driver(int argc, char ** argv){
 
     device_timer_t * dt = gpu_dev->device_timer_create();
     //op_conv->forward();
-    for(int l=0;l<2;l++){
+    for(int l=0;l<LOOP_WARMUP;l++){
         op_conv->forward();
     }
     dt->start();
-    for(int l=0;l<5;l++){
+    for(int l=0;l<LOOP_ITR;l++){
         op_conv->forward();
     }
     dt->stop();
-    double cost_per_loop = dt->elapsed()/5.0;
+    double cost_per_loop = dt->elapsed()/LOOP_ITR;
     std::cout<<"convolution fwd gpu cost "<<cost_per_loop<<"ms average"<<std::endl;
+
+    if(!is_fwd){
+        //op_conv->backward();
+        dt->reset();
+        for(int l=0;l<LOOP_WARMUP;l++){
+            op_conv->backward_data();
+        }
+        dt->start();
+        for(int l=0;l<LOOP_ITR;l++){
+            op_conv->backward_data();
+        }
+        dt->stop();
+        cost_per_loop = dt->elapsed()/LOOP_ITR;
+        std::cout<<"convolution bwd_data gpu cost "<<cost_per_loop<<"ms average"<<std::endl;
+
+        dt->reset();
+        for(int l=0;l<LOOP_WARMUP;l++){
+            op_conv->backward_filter();
+        }
+        dt->start();
+        for(int l=0;l<LOOP_ITR;l++){
+            op_conv->backward_filter();
+        }
+        dt->stop();
+        cost_per_loop = dt->elapsed()/LOOP_ITR;
+        std::cout<<"convolution bwd_filter gpu cost "<<cost_per_loop<<"ms average"<<std::endl;
+    }
     gpu_dev->device_timer_destroy(dt);
 
-    if(!is_fwd)
-        op_conv->backward();
     //validation
     op_conv_c->forward();
     if(!is_fwd)
@@ -432,12 +460,12 @@ static int conv_driver(int argc, char ** argv){
         float * dev_in_grad = new float[t_in_grad->elem()];
         gpu_dev->tensor_copy(dev_in_grad, t_in_grad, t_in_grad->bytes(), TENSOR_COPY_D2H);
 
-        int error_cnt_grad = util_compare_data(dev_in_grad, t_in_grad_c->mem, t_in_grad_c->elem(), TENSOR_DT_FLOAT, 0.001);
-        if(error_cnt_grad){
-            std::cout<<"convolution bwd compare fail"<<std::endl;
-        }else{
-            std::cout<<"convolution bwd result verified"<<std::endl;
-        }
+        //int error_cnt_grad = util_compare_data(dev_in_grad, t_in_grad_c->mem, t_in_grad_c->elem(), TENSOR_DT_FLOAT, 0.001);
+        //if(error_cnt_grad){
+        //    std::cout<<"convolution bwd compare fail"<<std::endl;
+        //}else{
+        //    std::cout<<"convolution bwd result verified"<<std::endl;
+        //}
         delete [] dev_in_grad;
     }
 
