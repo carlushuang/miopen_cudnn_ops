@@ -441,6 +441,7 @@ static int conv_driver(int argc, char ** argv){
     gpu_dev->device_timer_destroy(dt);
 
     //validation
+#ifdef CPU_VALIDATE
     op_conv_c->forward();
     if(!is_fwd)
         op_conv_c->backward();
@@ -448,7 +449,6 @@ static int conv_driver(int argc, char ** argv){
     // compare
     float * dev_out = new float[t_out->elem()];
     gpu_dev->tensor_copy(dev_out, t_out, t_out->bytes(), TENSOR_COPY_D2H);
-
     int error_cnt = util_compare_data(dev_out, t_out_c->mem, t_out_c->elem(), TENSOR_DT_FLOAT, 0.001);
     if(error_cnt){
         std::cout<<"convolution fwd compare fail"<<std::endl;
@@ -468,7 +468,7 @@ static int conv_driver(int argc, char ** argv){
         //}
         delete [] dev_in_grad;
     }
-
+#endif
     // clean
     operator_destroy(op_conv);
     gpu_dev->convolution_desc_destroy(conv_desc);

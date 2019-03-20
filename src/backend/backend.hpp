@@ -401,8 +401,8 @@ public:
     int id;
     cudaStream_t queue;
     cudnnHandle_t handle;
-    virtual device_timer_t * device_timer_create(){}
-    virtual void device_timer_destroy(device_timer_t * dt){}
+    virtual device_timer_t * device_timer_create();
+    virtual void device_timer_destroy(device_timer_t * dt);
 
     virtual tensor_t * tensor_create(int * dims, int n_dim, 
                     tensor_data_type data_type, tensor_layout layout);

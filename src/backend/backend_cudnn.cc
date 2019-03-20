@@ -38,7 +38,52 @@ device_cuda::device_cuda(int dev_id){
 device_cuda::~device_cuda(){
     cudnnDestroy(this->handle);
 }
+class device_timer_cuda: public device_timer_t{
+public:
+    device_timer_cuda(){}
+    virtual ~device_timer_cuda(){
+        reset();
+    }
+    virtual void reset(){
+        if(event_created){
+            CHECK_CUDA(cudaEventDestroy(start_ev));
+            CHECK_CUDA(cudaEventDestroy(stop_ev));
+            event_created = false;
+        }
+    }
+    virtual void start(){
+        reset();
+        CHECK_CUDA(cudaEventCreate(&start_ev));
+        CHECK_CUDA(cudaEventCreate(&stop_ev));
+        event_created = true;
 
+        CHECK_CUDA(cudaDeviceSynchronize());
+        CHECK_CUDA(cudaEventRecord( start_ev, queue ));
+    }
+    virtual void stop(){
+        CHECK_CUDA(cudaEventRecord( stop_ev, queue ));
+        CHECK_CUDA(cudaEventSynchronize(stop_ev));
+    }
+    virtual double elapsed(){
+        float ms;
+        CHECK_CUDA(cudaEventElapsedTime(&ms,start_ev, stop_ev));
+        return (double)ms;
+    }
+
+    cudaStream_t queue = NULL;
+    cudaEvent_t start_ev, stop_ev;
+    bool event_created = false;     // stupid flag to control event creation
+};
+device_timer_t * device_cuda::device_timer_create(){
+    device_timer_cuda * dt = new device_timer_cuda;
+    dt->queue = this->queue;
+    return dt;
+}
+void device_cuda::device_timer_destroy(device_timer_t * dt){
+    if(!dt)
+        return;
+    delete (device_timer_cuda*)dt;
+}
 tensor_t * device_cuda::tensor_create(int * dims, int n_dim, 
         tensor_data_type data_type, tensor_layout layout){
 
