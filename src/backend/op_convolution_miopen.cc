@@ -47,8 +47,11 @@ static const char * to_miopen_bwd_data_algo_name(miopenConvBwdDataAlgorithm_t bw
 void op_convolution_miopen::tune_op(){
     // API like miopenFindConvolutionForwardAlgorithm() need pre-alloced device memory
     // unlike nv cudnnFindConvolutionForwardAlgorithm()
-    assert(input && output && filter);
     this->alloc_mem();
+
+    device_hip * dev_hip = (device_hip *)dev;
+    assert(input && output && filter);
+
     if(!forward_tuned){
         forward_tuned=1;
 #if 0
@@ -131,7 +134,7 @@ void op_convolution_miopen::tune_op(){
         bwd_data_algo = perfs[0].bwd_data_algo;
     }
     if(!backward_filter_tuned){
-        backward_filter_tune = 1;
+        backward_filter_tuned = 1;
         CHECK_MIO(miopenConvolutionBackwardWeightsGetWorkSpaceSize(dev_hip->handle,
             (const miopenTensorDescriptor_t)output_grad->desc,
             (const miopenTensorDescriptor_t)input->desc,

@@ -163,10 +163,10 @@ static int pooling_driver(int argc, char ** argv){
     int ksize = parser.get_arg_int("k");
     int psize = parser.get_arg_int("p");
     int ssize = parser.get_arg_int("s");
-    int n     = parser.get_arg_int("n");
-    int c     = parser.get_arg_int("c");
-    int h     = parser.get_arg_int("h");
-    int w     = parser.get_arg_int("w");
+    size_t n  = (size_t)parser.get_arg_int("n");
+    size_t c  = (size_t)parser.get_arg_int("c");
+    size_t h  = (size_t)parser.get_arg_int("h");
+    size_t w  = (size_t)parser.get_arg_int("w");
     int pmode = parser.get_arg_int("m");
     int is_fwd = parser.get_arg_int("f");
 
@@ -311,10 +311,10 @@ static int conv_driver(int argc, char ** argv){
     parser.dump_parsed();
 
     // get param from arg
-    int batch    = parser.get_arg_int("n");
-    int input_c  = parser.get_arg_int("c");
-    int input_h  = parser.get_arg_int("h");
-    int input_w  = parser.get_arg_int("w");
+    size_t batch    = (size_t)parser.get_arg_int("n");
+    size_t input_c  = (size_t)parser.get_arg_int("c");
+    size_t input_h  = (size_t)parser.get_arg_int("h");
+    size_t input_w  = (size_t)parser.get_arg_int("w");
     int padding  = parser.get_arg_int("p");
     int stride   = parser.get_arg_int("s");
     int ksize    = parser.get_arg_int("x");
@@ -348,7 +348,7 @@ static int conv_driver(int argc, char ** argv){
     tensor_t *t_in_grad_c, *t_out_grad_c, *t_filter_grad_c;
     operator_base *op_conv, *op_conv_c;
     size_t t_in_dim[4] = {batch,input_c,input_h,input_w};
-    size_t t_filter_dim[4] = {filters, input_c/groups, ksize, ksize};
+    size_t t_filter_dim[4] = {(size_t)filters, (size_t)(input_c/groups), (size_t)ksize, (size_t)ksize};
     size_t t_out_dim[4];
 
     // create gpu tensors
@@ -517,10 +517,10 @@ static int act_driver(int argc, char ** argv){
     parser.dump_parsed();
 
     // get param from arg
-    int n     = parser.get_arg_int("n");
-    int c     = parser.get_arg_int("c");
-    int h     = parser.get_arg_int("h");
-    int w     = parser.get_arg_int("w");
+    size_t n   = (size_t)parser.get_arg_int("n");
+    size_t c   = (size_t)parser.get_arg_int("c");
+    size_t h   = (size_t)parser.get_arg_int("h");
+    size_t w   = (size_t)parser.get_arg_int("w");
     int is_fwd = parser.get_arg_int("f");
     std::string amode = parser.get_arg("m");
     float alpha = parser.get_arg_float("a");

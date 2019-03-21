@@ -12,14 +12,14 @@ void op_pooling_miopen::forward()
 {
     assert(input && output);
     device_hip * dev_hip = (device_hip *)dev;
-    if(!forward_prepared){
+    if(!forward_tuned){
         CHECK_MIO(miopenPoolingGetWorkSpaceSize((const miopenTensorDescriptor_t)output->desc,
                 &workspace_size));
 
         workspace_mem = workspace_size?
                             dev->ws->get(workspace_size, input->data_type):
                             nullptr;
-        forward_prepared = 1;
+        forward_tuned = 1;
     }
     float alpha = 1.f;
     float beta = 0.f;
