@@ -44,6 +44,7 @@ static const char * to_miopen_bwd_data_algo_name(miopenConvBwdDataAlgorithm_t bw
         break;
     }
 }
+#define MIOPEN_EXHAUSTIVE_SEARCH false
 void op_convolution_miopen::tune_op(){
     // API like miopenFindConvolutionForwardAlgorithm() need pre-alloced device memory
     // unlike nv cudnnFindConvolutionForwardAlgorithm()
@@ -88,7 +89,7 @@ void op_convolution_miopen::tune_op(){
                 (const miopenConvolutionDescriptor_t )conv_desc->desc,
                 (const miopenTensorDescriptor_t)output->desc, output->mem,
                 4, &returned_algos, perfs,
-                fwd_workspace_mem, fwd_workspace_size, true));
+                fwd_workspace_mem, fwd_workspace_size, MIOPEN_EXHAUSTIVE_SEARCH));
 #if 1
         LOG_I()<<" found miopenConv "<<returned_algos<<" fwd algo, using "<<perfs[0].fwd_algo<<"("<<
             to_miopen_fwd_algo_name(perfs[0].fwd_algo)<<")"<<std::endl;
@@ -122,7 +123,7 @@ void op_convolution_miopen::tune_op(){
             (const miopenConvolutionDescriptor_t)conv_desc->desc,
             (const miopenTensorDescriptor_t)input_grad->desc, input_grad->mem,
             5, &returned_algos, perfs,
-            bwd_data_workspace_mem, bwd_data_workspace_size, true));
+            bwd_data_workspace_mem, bwd_data_workspace_size, MIOPEN_EXHAUSTIVE_SEARCH));
 #if 1
         LOG_I()<<" found miopenConv "<<returned_algos<<" bwd_data algo, using "<<perfs[0].bwd_data_algo<<"("<<
             to_miopen_bwd_data_algo_name(perfs[0].bwd_data_algo)<<")"<<std::endl;
@@ -153,7 +154,7 @@ void op_convolution_miopen::tune_op(){
             (const miopenConvolutionDescriptor_t)conv_desc->desc,
             (const miopenTensorDescriptor_t)filter_grad->desc, filter_grad->mem,
             5, &returned_algos, perfs,
-            bwd_filter_workspace_mem, bwd_filter_workspace_size, true));
+            bwd_filter_workspace_mem, bwd_filter_workspace_size, MIOPEN_EXHAUSTIVE_SEARCH));
 #if 1
         LOG_I()<<" found miopenConv "<<returned_algos<<" bwd_filter algo, using "<<perfs[0].bwd_weights_algo<<"("<<
             to_miopen_bwd_weights_algo_name(perfs[0].bwd_weights_algo)<<")"<<std::endl;
