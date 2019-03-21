@@ -84,19 +84,19 @@ void device_cuda::device_timer_destroy(device_timer_t * dt){
         return;
     delete (device_timer_cuda*)dt;
 }
-tensor_t * device_cuda::tensor_create(int * dims, int n_dim, 
+tensor_t * device_cuda::tensor_create(size_t * dims, size_t n_dim, 
         tensor_data_type data_type, tensor_layout layout){
 
     if(n_dim == 1 && layout == TENSOR_LAYOUT_1D){
-        void* ptr;
-        CHECK_CUDA(cudaMalloc(&ptr, dims[0]*data_type_unit(data_type)));
+        //void* ptr;
+        //CHECK_CUDA(cudaMalloc(&ptr, dims[0]*data_type_unit(data_type)));
         tensor_t * tensor = new tensor_t;
         tensor->dim[0] = dims[0];
         tensor->n_dims = 1;
         tensor->data_type = data_type;
         tensor->layout = layout;
         tensor->desc = nullptr;
-        tensor->mem = ptr;
+        //tensor->mem = ptr;
 
         return tensor;
     }
@@ -108,8 +108,8 @@ tensor_t * device_cuda::tensor_create(int * dims, int n_dim,
     CHECK_CUDNN(cudnnSetTensor4dDescriptor(desc, to_cudnn_layout(layout), to_cudnn_data_type(data_type),
         dims[0], dims[1], dims[2], dims[3]));
 
-    void* ptr;
-    CHECK_CUDA(cudaMalloc(&ptr, dims[0]*dims[1]*dims[2]*dims[3]*data_type_unit(data_type)));
+    //void* ptr;
+    //CHECK_CUDA(cudaMalloc(&ptr, dims[0]*dims[1]*dims[2]*dims[3]*data_type_unit(data_type)));
 
     tensor_t * tensor = new tensor_t;
     tensor->dim[0] = dims[0];
@@ -120,11 +120,24 @@ tensor_t * device_cuda::tensor_create(int * dims, int n_dim,
     tensor->data_type = data_type;
     tensor->layout = layout;
     tensor->desc = desc;
-    tensor->mem = ptr;
+    //tensor->mem = ptr;
     return tensor;
 }
+void device_cuda::tensor_alloc(tensor_t * tensor){
+    assert(tensor && !tensor->mem);
+    if(tensor->n_dims==1 && tensor->layout==TENSOR_LAYOUT_1D){
+        void* ptr;
+        CHECK_CUDA(cudaMalloc(&ptr, tensor->dim[0]*data_type_unit(tensor->data_type)));
+        tensor->mem = ptr;
+    }else{
+        void* ptr;
+        CHECK_CUDA(cudaMalloc(&ptr,
+            tensor->dim[0]*tensor->dim[1]*tensor->dim[2]*tensor->dim[3]*data_type_unit(tensor->data_type)));
+        tensor->mem = ptr;
+    }
+}
 
-void device_cuda::tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind){
+void device_cuda::tensor_copy(void *dest, void *src, size_t bytes, tensor_copy_kind copy_kind){
     if(copy_kind == TENSOR_COPY_D2H){
         tensor_t * t = (tensor_t *)src;
         CHECK_CUDA(cudaMemcpy(dest, t->mem, bytes, cudaMemcpyDeviceToHost));

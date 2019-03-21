@@ -13,12 +13,31 @@ class operator_base{
 public:
     operator_base(){}
     virtual ~operator_base(){}
+
     virtual void forward() = 0;
     virtual void backward() = 0;
     virtual void backward_data(){}
     virtual void backward_filter(){}
 
-    virtual void infer_shape(int * out_dim){}
+    virtual void infer_shape(size_t * out_dim){}
+    virtual void tune_op(){}
+    virtual void alloc_mem(){
+        assert(dev);
+#define SAFE_ALLOC(t) do{           \
+        if( (t) && !(t)->mem)       \
+            dev->tensor_alloc(t);   \
+    } while(0)
+
+        SAFE_ALLOC(input);
+        SAFE_ALLOC(input);
+        SAFE_ALLOC(output);
+        SAFE_ALLOC(filter);
+        SAFE_ALLOC(input_grad);
+        SAFE_ALLOC(output_grad);
+        SAFE_ALLOC(filter_grad);
+
+#undef SAFE_ALLOC
+    }
 
     tensor_t * input ={nullptr};
     tensor_t * output ={nullptr};
@@ -31,10 +50,9 @@ public:
     operator_type type;
     device_base * dev ={nullptr};
 
-    int forward_prepared ={0};
-    int backward_prepared ={0};
-    int backward_data_prepared ={0};
-    int backward_filter_prepared ={0};
+    int forward_tuned ={0};
+    int backward_data_tuned ={0};
+    int backward_filter_tuned ={0};
 };
 /*****************************************************************************
  * convolution op
@@ -48,7 +66,8 @@ public:
     virtual void backward();
     virtual void backward_data();
     virtual void backward_filter();
-    virtual void infer_shape(int * out_dim){
+    virtual void tune_op(){}
+    virtual void infer_shape(size_t * out_dim){
         assert(input && conv_desc);
         out_dim[0] = input->dim[0];
         out_dim[1] = conv_desc->k;
@@ -77,6 +96,7 @@ class op_convolution_miopen : public op_convolution{
 public:
    op_convolution_miopen(void * desc);
     ~op_convolution_miopen();
+    virtual void tune_op();
     virtual void forward();
     virtual void backward();
     virtual void backward_data();
@@ -91,6 +111,7 @@ class op_convolution_cudnn : public op_convolution{
 public:
    op_convolution_cudnn(void * desc);
     ~op_convolution_cudnn();
+    virtual void tune_op();
     virtual void forward();
     virtual void backward();
     virtual void backward_data();
@@ -112,7 +133,7 @@ public:
     virtual ~op_pooling(){}
     virtual void forward();
     virtual void backward();
-    virtual void infer_shape(int * out_dim){
+    virtual void infer_shape(size_t * out_dim){
         assert(input);
         out_dim[0] = input->dim[0];
         out_dim[1] = input->dim[1];
@@ -165,7 +186,7 @@ public:
     virtual ~op_activation(){}
     virtual void forward();
     virtual void backward();
-    virtual void infer_shape(int * out_dim){
+    virtual void infer_shape(size_t * out_dim){
         assert(input);
         out_dim[0] = input->dim[0];
         out_dim[1] = input->dim[1];

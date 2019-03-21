@@ -99,35 +99,35 @@ void device_hip::device_timer_destroy(device_timer_t * dt){
         return ;
     delete (device_timer_hip*)dt;
 }
-tensor_t * device_hip::tensor_create(int * dims, int n_dim, 
+tensor_t * device_hip::tensor_create(size_t * dims, size_t n_dim, 
         tensor_data_type data_type, tensor_layout layout){
 
     if(n_dim == 1 && layout == TENSOR_LAYOUT_1D){
-        void* ptr;
-        CHECK_HIP(hipMalloc(&ptr, dims[0]*data_type_unit(data_type)));
+        //void* ptr;
+        //CHECK_HIP(hipMalloc(&ptr, dims[0]*data_type_unit(data_type)));
         tensor_t * tensor = new tensor_t;
         tensor->dim[0] = dims[0];
         tensor->n_dims = 1;
         tensor->data_type = data_type;
         tensor->layout = layout;
         tensor->desc = nullptr;
-        tensor->mem = ptr;
+        //tensor->mem = ptr;
 
         return tensor;
     }
     assert(n_dim == 4 && "current only support 4 dim tensor");
     assert(layout == TENSOR_LAYOUT_NCHW && "current only support NCHW");
 
-    int n = dims[0];
-    int c = dims[1];
-    int h = dims[2];
-    int w = dims[3];
+    size_t n = dims[0];
+    size_t c = dims[1];
+    size_t h = dims[2];
+    size_t w = dims[3];
     miopenTensorDescriptor_t desc;
     CHECK_MIO(miopenCreateTensorDescriptor(&desc));
     CHECK_MIO(miopenSet4dTensorDescriptor(desc, to_miopen_data_type(data_type), n, c, h, w));
 
-    void* ptr;
-    CHECK_HIP(hipMalloc(&ptr, n*c*h*w*data_type_unit(data_type)));
+    //void* ptr;
+    //CHECK_HIP(hipMalloc(&ptr, n*c*h*w*data_type_unit(data_type)));
 
     tensor_t * tensor = new tensor_t;
     tensor->dim[0] = n;
@@ -138,11 +138,24 @@ tensor_t * device_hip::tensor_create(int * dims, int n_dim,
     tensor->data_type = data_type;
     tensor->layout = layout;
     tensor->desc = desc;
-    tensor->mem = ptr;
+    //tensor->mem = ptr;
     return tensor;
 }
+void device_hip::tensor_alloc(tensor_t * tensor){
+    assert(tensor && !tensor->mem);
+    if(tensor->n_dims==1 && tensor->layout==TENSOR_LAYOUT_1D){
+        void* ptr;
+        CHECK_HIP(hipMalloc(&ptr, tensor->dim[0]*data_type_unit(tensor->data_type)));
+        tensor->mem = ptr;
+    }else{
+        void* ptr;
+        CHECK_HIP(hipMalloc(&ptr,
+            tensor->dim[0]*tensor->dim[1]*tensor->dim[2]*tensor->dim[3]*data_type_unit(tensor->data_type)));
+        tensor->mem = ptr;
+    }
+}
 
-void device_hip::tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind){
+void device_hip::tensor_copy(void *dest, void *src, size_t bytes, tensor_copy_kind copy_kind){
     if(copy_kind == TENSOR_COPY_D2H){
         tensor_t * t = (tensor_t *)src;
         CHECK_HIP(hipMemcpyDtoH(dest, t->mem, bytes));

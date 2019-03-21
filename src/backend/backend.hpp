@@ -4,6 +4,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <assert.h>
+#include <stddef.h>
 
 enum log_level{
     LOG_INFO = 0,
@@ -51,17 +52,17 @@ enum tensor_copy_kind{
 
 #define MAX_TENSOR_DIM 4
 struct tensor_t{
-    int dim[MAX_TENSOR_DIM] ={0};
-    int n_dims;
-    int bytes() const {
-        int b=1;
-        for(int i=0;i<n_dims;i++)
+    size_t dim[MAX_TENSOR_DIM] ={0};
+    size_t n_dims;
+    size_t bytes() const {
+        size_t b=1;
+        for(size_t i=0;i<n_dims;i++)
             b *= dim[i];
         return b*data_type_unit(data_type);
     }
-    int elem() const {
-        int e=1;
-        for(int i=0;i<n_dims;i++)
+    size_t elem() const {
+        size_t e=1;
+        for(size_t i=0;i<n_dims;i++)
             e *= dim[i];
         return e;
     }
@@ -131,11 +132,11 @@ class workspace {
 public:
     workspace(device_base * dev_);
     ~workspace();
-    void * get(int bytes, tensor_data_type dt);
-    tensor_t * get_tensor(int bytes, tensor_data_type dt);
+    void * get(size_t bytes, tensor_data_type dt);
+    tensor_t * get_tensor(size_t bytes, tensor_data_type dt);
 
 private:
-    int cur_byte = {0};
+    size_t cur_byte = {0};
     device_base * dev;
     tensor_t * workspace_tensor ={nullptr};
 };
@@ -170,9 +171,11 @@ public:
     virtual device_timer_t * device_timer_create() = 0;
     virtual void device_timer_destroy(device_timer_t * dt) = 0;
 
-    virtual tensor_t * tensor_create(int * dims, int n_dim, 
+    // in gpu, not alloc memory at this stage. use tensor_alloc() to alloc device memory after created
+    virtual tensor_t * tensor_create(size_t * dims, size_t n_dim, 
                     tensor_data_type data_type, tensor_layout layout)=0;
-    virtual void tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind)=0;
+    virtual void tensor_alloc(tensor_t * tensor) = 0;
+    virtual void tensor_copy(void *dest, void *src, size_t bytes, tensor_copy_kind copy_kind)=0;
     virtual void tensor_destroy(tensor_t * tensor)=0;
     virtual void tensor_set(tensor_t * tensor, unsigned char v) = 0;
 
@@ -283,9 +286,10 @@ public:
     virtual device_timer_t * device_timer_create();
     virtual void device_timer_destroy(device_timer_t * dt);
 
-    virtual tensor_t * tensor_create(int * dims, int n_dim, 
+    virtual tensor_t * tensor_create(size_t * dims, size_t n_dim, 
                     tensor_data_type data_type, tensor_layout layout);
-    virtual void tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind);
+    virtual void tensor_alloc(tensor_t * tensor);
+    virtual void tensor_copy(void *dest, void *src, size_t bytes, tensor_copy_kind copy_kind);
     virtual void tensor_destroy(tensor_t * tensor);
     virtual void tensor_set(tensor_t * tensor, unsigned char v);
 
@@ -404,9 +408,10 @@ public:
     virtual device_timer_t * device_timer_create();
     virtual void device_timer_destroy(device_timer_t * dt);
 
-    virtual tensor_t * tensor_create(int * dims, int n_dim, 
+    virtual tensor_t * tensor_create(size_t * dims, size_t n_dim, 
                     tensor_data_type data_type, tensor_layout layout);
-    virtual void tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind);
+    virtual void tensor_alloc(tensor_t * tensor);
+    virtual void tensor_copy(void *dest, void *src, size_t bytes, tensor_copy_kind copy_kind);
     virtual void tensor_destroy(tensor_t * tensor);
     virtual void tensor_set(tensor_t * tensor, unsigned char v);
 
@@ -434,9 +439,10 @@ public:
     ~device_c();
     virtual device_timer_t * device_timer_create(){return nullptr;}
     virtual void device_timer_destroy(device_timer_t * dt){}
-    virtual tensor_t * tensor_create(int * dims, int n_dim, 
+    virtual tensor_t * tensor_create(size_t * dims, size_t n_dim, 
                     tensor_data_type data_type, tensor_layout layout);
-    virtual void tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind);
+    virtual void tensor_alloc(tensor_t * tensor);
+    virtual void tensor_copy(void *dest, void *src, size_t bytes, tensor_copy_kind copy_kind);
     virtual void tensor_destroy(tensor_t * tensor);
     virtual void tensor_set(tensor_t * tensor, unsigned char v);
     virtual pooling_desc_t * pooling_desc_create(

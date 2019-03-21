@@ -191,8 +191,8 @@ static int pooling_driver(int argc, char ** argv){
     tensor_t *t_in, *t_out, *t_in_c, *t_out_c;
     tensor_t *t_in_grad, *t_out_grad, *t_in_grad_c, *t_out_grad_c;
     operator_base *op_pooling, *op_pooling_c;
-    int t_in_dim[4] = {n,c,h,w};
-    int t_out_dim[4];
+    size_t t_in_dim[4] = {n,c,h,w};
+    size_t t_out_dim[4];
 
     // create gpu tensors
     op_pooling = operator_create(gpu_dev, OP_POOLING, pooling_desc);
@@ -221,6 +221,11 @@ static int pooling_driver(int argc, char ** argv){
         op_pooling_c->input_grad = t_in_grad_c;
         op_pooling_c->output_grad = t_out_grad_c;
     }
+
+    op_pooling->tune_op();
+    op_pooling->alloc_mem();
+    op_pooling_c->tune_op();
+    op_pooling_c->alloc_mem();
 
     // prepare input
     rand_float((float*)t_in_c->mem, t_in_c->elem());
@@ -342,9 +347,9 @@ static int conv_driver(int argc, char ** argv){
     tensor_t *t_in_grad, *t_out_grad, *t_filter_grad;
     tensor_t *t_in_grad_c, *t_out_grad_c, *t_filter_grad_c;
     operator_base *op_conv, *op_conv_c;
-    int t_in_dim[4] = {batch,input_c,input_h,input_w};
-    int t_filter_dim[4] = {filters, input_c/groups, ksize, ksize};
-    int t_out_dim[4];
+    size_t t_in_dim[4] = {batch,input_c,input_h,input_w};
+    size_t t_filter_dim[4] = {filters, input_c/groups, ksize, ksize};
+    size_t t_out_dim[4];
 
     // create gpu tensors
     op_conv = operator_create(gpu_dev, OP_CONV, conv_desc);
@@ -382,6 +387,11 @@ static int conv_driver(int argc, char ** argv){
         op_conv_c->filter_grad = t_filter_grad_c;
     }
 
+    op_conv->tune_op();
+    op_conv->alloc_mem();
+    op_conv_c->tune_op();
+    op_conv_c->alloc_mem();
+
     // prepare input
     rand_float((float*)t_in_c->mem, t_in_c->elem());
     rand_float((float*)t_filter_c->mem, t_filter_c->elem());
@@ -400,7 +410,6 @@ static int conv_driver(int argc, char ** argv){
     }
 
     device_timer_t * dt = gpu_dev->device_timer_create();
-    //op_conv->forward();
     for(int l=0;l<LOOP_WARMUP;l++){
         op_conv->forward();
     }
@@ -413,7 +422,6 @@ static int conv_driver(int argc, char ** argv){
     std::cout<<"convolution fwd gpu cost "<<cost_per_loop<<"ms average"<<std::endl;
 
     if(!is_fwd){
-        //op_conv->backward();
         dt->reset();
         for(int l=0;l<LOOP_WARMUP;l++){
             op_conv->backward_data();
@@ -439,7 +447,7 @@ static int conv_driver(int argc, char ** argv){
         std::cout<<"convolution bwd_filter gpu cost "<<cost_per_loop<<"ms average"<<std::endl;
     }
     gpu_dev->device_timer_destroy(dt);
-
+//#define CPU_VALIDATE
     //validation
 #ifdef CPU_VALIDATE
     op_conv_c->forward();
@@ -533,8 +541,8 @@ static int act_driver(int argc, char ** argv){
     tensor_t *t_in, *t_out, *t_in_c, *t_out_c;
     tensor_t *t_in_grad, *t_out_grad, *t_in_grad_c, *t_out_grad_c;
     operator_base *op_act, *op_act_c;
-    int t_in_dim[4] = {n,c,h,w};
-    int t_out_dim[4];
+    size_t t_in_dim[4] = {n,c,h,w};
+    size_t t_out_dim[4];
 
     // create gpu tensors
     op_act = operator_create(gpu_dev, OP_ACTIVATION, act_desc);
@@ -563,6 +571,11 @@ static int act_driver(int argc, char ** argv){
         op_act_c->input_grad = t_in_grad_c;
         op_act_c->output_grad = t_out_grad_c;
     }
+
+    op_act->tune_op();
+    op_act->alloc_mem();
+    op_act_c->tune_op();
+    op_act_c->alloc_mem();
 
     // prepare input
     rand_float((float*)t_in_c->mem, t_in_c->elem());

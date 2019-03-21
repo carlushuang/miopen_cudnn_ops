@@ -44,12 +44,13 @@ static const char * to_miopen_bwd_data_algo_name(miopenConvBwdDataAlgorithm_t bw
         break;
     }
 }
-
-void op_convolution_miopen::forward(){
+void op_convolution_miopen::tune_op(){
+    // API like miopenFindConvolutionForwardAlgorithm() need pre-alloced device memory
+    // unlike nv cudnnFindConvolutionForwardAlgorithm()
     assert(input && output && filter);
-    device_hip * dev_hip = (device_hip *)dev;
-    if(!forward_prepared){
-        forward_prepared=1;
+    this->alloc_mem();
+    if(!forward_tuned){
+        forward_tuned=1;
 #if 0
         {
             int out_n, out_c, out_h, out_w;
@@ -96,27 +97,10 @@ void op_convolution_miopen::forward(){
         fwd_algo = perfs[0].fwd_algo;
         fwd_workspace_size = perfs[0].memory;   // wrap back the selected algo size
     }
-
-    fwd_workspace_mem = fwd_workspace_size?
-                        dev->ws->get(fwd_workspace_size, input->data_type):
-                        nullptr;
-    float alpha = 1.f;
-    float beta = .0f;
-    CHECK_MIO(miopenConvolutionForward(dev_hip->handle,
-        &alpha,
-        (const miopenTensorDescriptor_t)input->desc, input->mem,
-        (const miopenTensorDescriptor_t)filter->desc, filter->mem,
-        (const miopenConvolutionDescriptor_t )conv_desc->desc,
-        fwd_algo,
-        &beta,
-        (const miopenTensorDescriptor_t)output->desc, output->mem,
-        fwd_workspace_mem, fwd_workspace_size));
-}
-void op_convolution_miopen::backward_data(){
-    assert(input && output && filter && input_grad && output_grad && filter_grad);
-    device_hip * dev_hip = (device_hip *)dev;
-    if(!backward_data_prepared){
-        backward_data_prepared = 1;
+    if(!(input_grad && output_grad && filter_grad))
+        return ;        // ignore bwd
+    if(!backward_data_tuned){
+        backward_data_tuned = 1;
         CHECK_MIO(miopenConvolutionBackwardDataGetWorkSpaceSize(dev_hip->handle,
             (const miopenTensorDescriptor_t)output_grad->desc,
             (const miopenTensorDescriptor_t)filter->desc,
@@ -146,25 +130,8 @@ void op_convolution_miopen::backward_data(){
 #endif
         bwd_data_algo = perfs[0].bwd_data_algo;
     }
-
-    bwd_data_workspace_mem = bwd_data_workspace_size?
-                                dev->ws->get(bwd_data_workspace_size, input->data_type):
-                                nullptr;
-    float alpha = 1.f;
-    float beta = 0.f;
-    CHECK_MIO(miopenConvolutionBackwardData(dev_hip->handle, &alpha,
-        (const miopenTensorDescriptor_t)output_grad->desc, output_grad->mem,
-        (const miopenTensorDescriptor_t)filter->desc,filter->mem,
-        (const miopenConvolutionDescriptor_t)conv_desc->desc,
-        bwd_data_algo, &beta,
-        (const miopenTensorDescriptor_t)input_grad->desc, input_grad->mem,
-        bwd_data_workspace_mem, bwd_data_workspace_size));
-}
-void op_convolution_miopen::backward_filter(){
-    assert(input && output && filter && input_grad && output_grad && filter_grad);
-    device_hip * dev_hip = (device_hip *)dev;
-    if(!backward_filter_prepared){
-        backward_filter_prepared = 1;
+    if(!backward_filter_tuned){
+        backward_filter_tune = 1;
         CHECK_MIO(miopenConvolutionBackwardWeightsGetWorkSpaceSize(dev_hip->handle,
             (const miopenTensorDescriptor_t)output_grad->desc,
             (const miopenTensorDescriptor_t)input->desc,
@@ -194,6 +161,51 @@ void op_convolution_miopen::backward_filter(){
 #endif
         bwd_weights_algo = perfs[0].bwd_weights_algo;
     }
+}
+
+void op_convolution_miopen::forward(){
+    assert(input && output && filter);
+    device_hip * dev_hip = (device_hip *)dev;
+    assert(forward_tuned);
+
+    fwd_workspace_mem = fwd_workspace_size?
+                        dev->ws->get(fwd_workspace_size, input->data_type):
+                        nullptr;
+    float alpha = 1.f;
+    float beta = .0f;
+    CHECK_MIO(miopenConvolutionForward(dev_hip->handle,
+        &alpha,
+        (const miopenTensorDescriptor_t)input->desc, input->mem,
+        (const miopenTensorDescriptor_t)filter->desc, filter->mem,
+        (const miopenConvolutionDescriptor_t )conv_desc->desc,
+        fwd_algo,
+        &beta,
+        (const miopenTensorDescriptor_t)output->desc, output->mem,
+        fwd_workspace_mem, fwd_workspace_size));
+}
+void op_convolution_miopen::backward_data(){
+    assert(input && output && filter && input_grad && output_grad && filter_grad);
+    device_hip * dev_hip = (device_hip *)dev;
+    assert(backward_data_tuned);
+
+    bwd_data_workspace_mem = bwd_data_workspace_size?
+                                dev->ws->get(bwd_data_workspace_size, input->data_type):
+                                nullptr;
+    float alpha = 1.f;
+    float beta = 0.f;
+    CHECK_MIO(miopenConvolutionBackwardData(dev_hip->handle, &alpha,
+        (const miopenTensorDescriptor_t)output_grad->desc, output_grad->mem,
+        (const miopenTensorDescriptor_t)filter->desc,filter->mem,
+        (const miopenConvolutionDescriptor_t)conv_desc->desc,
+        bwd_data_algo, &beta,
+        (const miopenTensorDescriptor_t)input_grad->desc, input_grad->mem,
+        bwd_data_workspace_mem, bwd_data_workspace_size));
+}
+void op_convolution_miopen::backward_filter(){
+    assert(input && output && filter && input_grad && output_grad && filter_grad);
+    assert(backward_filter_tuned);
+    device_hip * dev_hip = (device_hip *)dev;
+
     bwd_filter_workspace_mem = bwd_filter_workspace_size?
                                 dev->ws->get(bwd_filter_workspace_size, input->data_type):
                                 nullptr;

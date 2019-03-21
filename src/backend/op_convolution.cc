@@ -30,8 +30,8 @@ void op_convolution::forward(){
         ", out_h:"<<out_h<<", out_w:"<<out_w<<std::endl;
 #endif
 
-    if(!forward_prepared){
-        forward_prepared = 1;
+    if(!forward_tuned){
+        forward_tuned = 1;  // use this to WA
         if(need_im2col){
             fwd_workspace_size = out_h*out_w*kernel_h*kernel_w*channel*data_type_unit(input->data_type) / groups;
             fwd_workspace_mem = dev->ws->get(fwd_workspace_size, input->data_type);

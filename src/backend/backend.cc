@@ -29,20 +29,22 @@ workspace::~workspace(){
         dev->tensor_destroy(workspace_tensor);
 }
 
-void * workspace::get(int bytes, tensor_data_type dt){
+void * workspace::get(size_t bytes, tensor_data_type dt){
     return get_tensor(bytes, dt)->mem;
 }
-tensor_t * workspace::get_tensor(int bytes, tensor_data_type dt){
+tensor_t * workspace::get_tensor(size_t bytes, tensor_data_type dt){
     assert(bytes != 0);
-    int elem = bytes / data_type_unit(dt);
+    size_t elem = bytes / data_type_unit(dt);
     if(!workspace_tensor){
         workspace_tensor = dev->tensor_create(&elem, 1, dt, TENSOR_LAYOUT_1D);
+        dev->tensor_alloc(workspace_tensor);
         cur_byte = bytes;
     }
     else{
         if(bytes > cur_byte){
             dev->tensor_destroy(workspace_tensor);
             workspace_tensor = dev->tensor_create(&elem, 1, dt, TENSOR_LAYOUT_1D);
+            dev->tensor_alloc(workspace_tensor);
             cur_byte = bytes;
         }
     }
@@ -54,13 +56,13 @@ device_c::device_c(){
     this->type = DEVICE_C;
 }
 device_c::~device_c() {}
-tensor_t * device_c::tensor_create(int * dims, int n_dim, 
+tensor_t * device_c::tensor_create(size_t * dims, size_t n_dim, 
                     tensor_data_type data_type, tensor_layout layout)
 {
-    int elem = 1;
-    for(int i=0;i<n_dim;i++)
+    size_t elem = 1;
+    for(size_t i=0;i<n_dim;i++)
         elem *= dims[i];
-    int total_byte = elem * data_type_unit(data_type);
+    size_t total_byte = elem * data_type_unit(data_type);
     void * ptr = (void*)new unsigned char[total_byte];
     assert(ptr);
 
@@ -77,7 +79,10 @@ tensor_t * device_c::tensor_create(int * dims, int n_dim,
     tensor->mem = ptr;
     return tensor;
 }
-void device_c::tensor_copy(void *dest, void *src, int bytes, tensor_copy_kind copy_kind)
+void device_c::tensor_alloc(tensor_t * tensor){
+
+}
+void device_c::tensor_copy(void *dest, void *src, size_t bytes, tensor_copy_kind copy_kind)
 {
     (void)copy_kind;
     tensor_t * t_dest = (tensor_t*)dest;
