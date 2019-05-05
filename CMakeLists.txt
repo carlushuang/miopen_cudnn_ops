@@ -37,6 +37,8 @@ macro(add_prefix var prefix)
     set(${var} "${tmp_str}")
 endmacro()
 
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -DOP_VERBOSE")
+
 if(WITH_MIOPEN)
     message(STATUS "compile on miopen, amd platform")
     set(ROCM_PATH /opt/rocm)

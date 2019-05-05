@@ -81,6 +81,10 @@ public:
                 conv_desc->dilation[1], conv_desc->kernel[1], conv_desc->stride[1]);
     }
 
+    virtual std::string get_fwd_algo_name(){return std::string("");}
+    virtual std::string get_bwd_data_name(){return std::string("");}
+    virtual std::string get_bwd_filter_name(){return std::string("");}
+
     convolution_desc_t * conv_desc;
 
     size_t fwd_workspace_size ={0};
@@ -101,6 +105,9 @@ public:
     virtual void backward();
     virtual void backward_data();
     virtual void backward_filter();
+    virtual std::string get_fwd_algo_name();
+    virtual std::string get_bwd_data_name();
+    virtual std::string get_bwd_filter_name();
     miopenConvFwdAlgorithm_t fwd_algo;
     miopenConvBwdWeightsAlgorithm_t bwd_weights_algo;
     miopenConvBwdDataAlgorithm_t bwd_data_algo;
@@ -116,6 +123,9 @@ public:
     virtual void backward();
     virtual void backward_data();
     virtual void backward_filter();
+    virtual std::string get_fwd_algo_name();
+    virtual std::string get_bwd_data_name();
+    virtual std::string get_bwd_filter_name();
     cudnnFilterDescriptor_t filter_desc;
     cudnnConvolutionFwdAlgo_t fwd_algo;
     cudnnConvolutionBwdFilterAlgo_t bwd_filter_algo;

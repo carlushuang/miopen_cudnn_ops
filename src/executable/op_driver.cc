@@ -5,10 +5,13 @@
 #include <string>
 #include <string.h>
 #include <assert.h>
+#include <stdio.h>
 #include <unordered_map>
 #include <random>
 
 #include <unistd.h>
+
+#define EF_PRT
 
 #define LOOP_WARMUP 2
 #define LOOP_ITR    5
@@ -40,6 +43,20 @@ static device_base * determin_device(){
 
     assert(dev && "Fail to create device");
     return dev;
+}
+void inline b2s(size_t bytes, char * str){
+	if(bytes<1024){
+		sprintf(str, "%lluB", bytes);
+	}else if(bytes<(1024*1024)){
+		double b= (double)bytes/1024.0;
+		sprintf(str, "%.2fKB", b);
+	}else if(bytes<(1024*1024*1024)){
+		double b= (double)bytes/(1024.0*1024);
+		sprintf(str, "%.2fMB", b);
+	}else{
+		double b= (double)bytes/(1024.0*1024*1024);
+		sprintf(str, "%.2fGB", b);
+	}
 }
 
 static void rand_float(float * vec, int len){
@@ -308,7 +325,7 @@ static int conv_driver(int argc, char ** argv){
 
     // parse arg
     if(!parser.parse(argc, argv)) return -1;
-    parser.dump_parsed();
+    //parser.dump_parsed();
 
     // get param from arg
     size_t batch    = (size_t)parser.get_arg_int("n");
@@ -419,7 +436,17 @@ static int conv_driver(int argc, char ** argv){
     }
     dt->stop();
     double cost_per_loop = dt->elapsed()/LOOP_ITR;
+#ifdef EF_PRT
+    //printf("N\tC\tH\tW\tK\tR\tS\tP\tQ\tmem\tcost(ms)\n");
+    char mem_str[20];
+    b2s( dynamic_cast<op_convolution*>(op_conv)->fwd_workspace_size , mem_str);
+    std::string fwd_algo_name = dynamic_cast<op_convolution*>(op_conv)->get_fwd_algo_name();
+    printf("%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%f\t%s\t%s\n",
+				batch,input_c,input_h,input_w, filters,ksize,ksize, padding,padding,
+                cost_per_loop, mem_str, fwd_algo_name.c_str());
+#else
     std::cout<<"convolution fwd gpu cost "<<cost_per_loop<<"ms average"<<std::endl;
+#endif
 
     if(!is_fwd){
         dt->reset();
@@ -432,7 +459,10 @@ static int conv_driver(int argc, char ** argv){
         }
         dt->stop();
         cost_per_loop = dt->elapsed()/LOOP_ITR;
+#ifdef EF_PRT
+#else
         std::cout<<"convolution bwd_data gpu cost "<<cost_per_loop<<"ms average"<<std::endl;
+#endif
 
         dt->reset();
         for(int l=0;l<LOOP_WARMUP;l++){
@@ -444,7 +474,9 @@ static int conv_driver(int argc, char ** argv){
         }
         dt->stop();
         cost_per_loop = dt->elapsed()/LOOP_ITR;
+#ifdef EF_PRT
         std::cout<<"convolution bwd_filter gpu cost "<<cost_per_loop<<"ms average"<<std::endl;
+#endif
     }
     gpu_dev->device_timer_destroy(dt);
 //#define CPU_VALIDATE

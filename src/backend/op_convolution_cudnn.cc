@@ -87,7 +87,7 @@ void op_convolution_cudnn::tune_op(){
             (const cudnnTensorDescriptor_t)output->desc,
             4, &returned_algos, perfs));
 
-#if 1
+#ifdef OP_VERBOSE
         LOG_I()<<" found cudnnConv "<<returned_algos<<" fwd algo, using "<<perfs[0].algo<<"("<<
             to_cudnn_fwd_algo_name(perfs[0].algo)<<")"<<std::endl;
         for (int i = 0; i < returned_algos; ++i) {
@@ -123,12 +123,14 @@ void op_convolution_cudnn::tune_op(){
             (const cudnnTensorDescriptor_t)input_grad->desc,
             5, &returned_algos, perfs_data));
 
+#ifdef OP_VERBOSE
         LOG_I()<<" found cudnnConv "<<returned_algos<<" bwd_data algo, using "<<perfs_data[0].algo<<"("<<
             to_cudnn_bwd_data_algo_name(perfs_data[0].algo)<<")"<<std::endl;
         for (int i = 0; i < returned_algos; ++i) {
             LOG_I()<<"    " << i << ": " << perfs_data[i].algo<< "(" <<to_cudnn_bwd_data_algo_name(perfs_data[i].algo)
                  << ") - time: " << perfs_data[i].time << ", Memory: " << perfs_data[i].memory<<std::endl;
         }
+#endif
         bwd_data_algo = perfs_data[0].algo;
 
         CHECK_CUDNN(cudnnGetConvolutionBackwardDataWorkspaceSize(dev_cuda->handle,
@@ -153,13 +155,14 @@ void op_convolution_cudnn::tune_op(){
             (const cudnnConvolutionDescriptor_t)conv_desc->desc,
             filter_desc,
             5, &returned_algos, perfs_filter));
-
+#ifdef OP_VERBOSE
         LOG_I()<<" found cudnnConv "<<returned_algos<<" bwd_filter algo, using "<<perfs_filter[0].algo<<"("<<
             to_cudnn_bwd_filter_algo_name(perfs_filter[0].algo)<<")"<<std::endl;
         for (int i = 0; i < returned_algos; ++i) {
             LOG_I()<<"    " << i << ": " << perfs_filter[i].algo<< "(" <<to_cudnn_bwd_filter_algo_name(perfs_filter[i].algo)
                  << ") - time: " << perfs_filter[i].time << ", Memory: " << perfs_filter[i].memory<<std::endl;
         }
+#endif
         bwd_filter_algo = perfs_filter[0].algo;
 
         CHECK_CUDNN(cudnnGetConvolutionBackwardFilterWorkspaceSize(dev_cuda->handle,
@@ -242,4 +245,16 @@ void op_convolution_cudnn::backward_filter(){
 void op_convolution_cudnn::backward(){
     this->backward_data();
     this->backward_filter();
+}
+std::string op_convolution_cudnn::get_fwd_algo_name(){
+    std::string algo_name(to_cudnn_fwd_algo_name(fwd_algo));
+    return algo_name;
+}
+std::string op_convolution_cudnn::get_bwd_data_name(){
+    std::string algo_name(to_cudnn_bwd_data_algo_name(bwd_data_algo));
+    return algo_name;
+}
+std::string op_convolution_cudnn::get_bwd_filter_name(){
+    std::string algo_name(to_cudnn_bwd_filter_algo_name(bwd_filter_algo));
+    return algo_name;
 }

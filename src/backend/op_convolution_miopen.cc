@@ -26,6 +26,7 @@ static const char * to_miopen_bwd_weights_algo_name(miopenConvBwdWeightsAlgorith
     switch(bwd_weight_algo){
         ALGO_CASE_STR(miopenConvolutionBwdWeightsAlgoGEMM);
         ALGO_CASE_STR(miopenConvolutionBwdWeightsAlgoDirect);
+        ALGO_CASE_STR(miopenConvolutionBwdWeightsAlgoWinograd);
         default:
             return "N/A";
         break;
@@ -90,7 +91,7 @@ void op_convolution_miopen::tune_op(){
                 (const miopenTensorDescriptor_t)output->desc, output->mem,
                 4, &returned_algos, perfs,
                 fwd_workspace_mem, fwd_workspace_size, MIOPEN_EXHAUSTIVE_SEARCH));
-#if 1
+#ifdef OP_VERBOSE
         LOG_I()<<" found miopenConv "<<returned_algos<<" fwd algo, using "<<perfs[0].fwd_algo<<"("<<
             to_miopen_fwd_algo_name(perfs[0].fwd_algo)<<")"<<std::endl;
         for (int i = 0; i < returned_algos; ++i) {
@@ -124,7 +125,7 @@ void op_convolution_miopen::tune_op(){
             (const miopenTensorDescriptor_t)input_grad->desc, input_grad->mem,
             5, &returned_algos, perfs,
             bwd_data_workspace_mem, bwd_data_workspace_size, MIOPEN_EXHAUSTIVE_SEARCH));
-#if 1
+#ifdef OP_VERBOSE
         LOG_I()<<" found miopenConv "<<returned_algos<<" bwd_data algo, using "<<perfs[0].bwd_data_algo<<"("<<
             to_miopen_bwd_data_algo_name(perfs[0].bwd_data_algo)<<")"<<std::endl;
         for (int i = 0; i < returned_algos; ++i) {
@@ -155,7 +156,7 @@ void op_convolution_miopen::tune_op(){
             (const miopenTensorDescriptor_t)filter_grad->desc, filter_grad->mem,
             5, &returned_algos, perfs,
             bwd_filter_workspace_mem, bwd_filter_workspace_size, MIOPEN_EXHAUSTIVE_SEARCH));
-#if 1
+#ifdef OP_VERBOSE
         LOG_I()<<" found miopenConv "<<returned_algos<<" bwd_filter algo, using "<<perfs[0].bwd_weights_algo<<"("<<
             to_miopen_bwd_weights_algo_name(perfs[0].bwd_weights_algo)<<")"<<std::endl;
         for (int i = 0; i < returned_algos; ++i) {
@@ -226,4 +227,16 @@ void op_convolution_miopen::backward_filter(){
 void op_convolution_miopen::backward(){
     this->backward_data();
     this->backward_filter();
+}
+std::string op_convolution_miopen::get_fwd_algo_name(){
+    std::string algo_name(to_miopen_fwd_algo_name(fwd_algo));
+    return algo_name;
+}
+std::string op_convolution_miopen::get_bwd_data_name(){
+    std::string algo_name(to_miopen_bwd_data_algo_name(bwd_data_algo));
+    return algo_name;
+}
+std::string op_convolution_miopen::get_bwd_filter_name(){
+    std::string algo_name(to_miopen_bwd_weights_algo_name(bwd_weights_algo));
+    return algo_name;
 }
