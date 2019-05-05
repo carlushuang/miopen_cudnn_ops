@@ -38,6 +38,7 @@ macro(add_prefix var prefix)
 endmacro()
 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -DOP_VERBOSE")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -DOP_CONV_SELECT")
 
 if(WITH_MIOPEN)
     message(STATUS "compile on miopen, amd platform")

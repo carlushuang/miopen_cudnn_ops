@@ -99,8 +99,18 @@ void op_convolution_miopen::tune_op(){
                  << ") - time: " << perfs[i].time << ", Memory: " << perfs[i].memory<<std::endl;
         }
 #endif
+
         fwd_algo = perfs[0].fwd_algo;
         fwd_workspace_size = perfs[0].memory;   // wrap back the selected algo size
+#ifdef OP_CONV_SELECT
+        for(int i=0;i<returned_algos;i++){
+            if(perfs[i].fwd_algo == miopenConvolutionFwdAlgoFFT){
+                fwd_algo = perfs[i].fwd_algo;
+                fwd_workspace_size = perfs[i].memory;
+                break;
+            }
+        }
+#endif
     }
     if(!(input_grad && output_grad && filter_grad))
         return ;        // ignore bwd
