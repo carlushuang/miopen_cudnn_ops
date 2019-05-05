@@ -77,7 +77,7 @@ void op_convolution_cudnn::tune_op(){
                 CUDNN_DEFAULT_MATH));
 
         // find fwd algo
-        cudnnConvolutionFwdAlgoPerf_t perfs[6];
+        cudnnConvolutionFwdAlgoPerf_t perfs[8];
         int returned_algos;
 
         CHECK_CUDNN(cudnnFindConvolutionForwardAlgorithm(dev_cuda->handle,
@@ -85,7 +85,7 @@ void op_convolution_cudnn::tune_op(){
             filter_desc,
             (const cudnnConvolutionDescriptor_t)conv_desc->desc,
             (const cudnnTensorDescriptor_t)output->desc,
-            6, &returned_algos, perfs));
+            8, &returned_algos, perfs));
 
 #ifdef OP_VERBOSE
         LOG_I()<<" found cudnnConv "<<returned_algos<<" fwd algo, using "<<perfs[0].algo<<"("<<
