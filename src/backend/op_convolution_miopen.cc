@@ -1,4 +1,5 @@
 #include "operator.hpp"
+#include "backend.hpp"
 
 op_convolution_miopen::op_convolution_miopen(void * desc): op_convolution(desc){
 
@@ -250,3 +251,4 @@ std::string op_convolution_miopen::get_bwd_filter_name(){
     std::string algo_name(to_miopen_bwd_weights_algo_name(bwd_weights_algo));
     return algo_name;
 }
+

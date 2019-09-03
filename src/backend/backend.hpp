@@ -20,6 +20,12 @@ std::ostream & log_to_stream(log_level level);
 #define LOG_E() log_to_stream(LOG_ERROR)
 #define LOG_F() log_to_stream(LOG_FATAL)
 
+#ifdef DEBUG
+#define debug_msg(fmt, ...) printf(fmt, __VA_ARGS__)
+#else
+#define debug_msg(fmt, ...)
+#endif
+
 enum device_type{
     DEVICE_HIP = 0,
     DEVICE_CUDA,

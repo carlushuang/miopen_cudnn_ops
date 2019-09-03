@@ -75,5 +75,5 @@ void op_convolution::backward_data(){
 
 }
 void op_convolution::backward_filter(){
-    
 }
+
