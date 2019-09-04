@@ -168,7 +168,7 @@ void dumpBufferToTxt(const char* fileName, T* data, size_t dataNumItems)
 
 	if(outFile)
 	{    
-		for (int i = 0; i < dataNumItems; i++)
+		for (size_t i = 0; i < dataNumItems; i++)
 			outFile << std::setprecision(9) << data[i] << ' ';
 		outFile << std::endl;
 		outFile.close();
@@ -187,7 +187,7 @@ bool readBufferFromTxt(T *data, size_t dataNumItems, const char* fileName)
 
 	if(infile)
 	{    
-		for (int i = 0; i < dataNumItems; i++)
+		for (size_t i = 0; i < dataNumItems; i++)
 			infile >> data[i];
 		infile.close();
 		debug_msg("Read data from input file %s\n", fileName);
@@ -349,6 +349,7 @@ static int pooling_driver(int argc, char ** argv){
 }
 #endif
 
+#ifdef WITH_MIOPEN
 static void print_forward_time(miopenTensorDescriptor_t input, miopenTensorDescriptor_t filter,
 		miopenTensorDescriptor_t output, const float kernel_average_time) {
 	printf("GPU Kernel Time Forward Conv. Elapsed: %f ms (average)\n", kernel_average_time);
@@ -398,6 +399,57 @@ static void print_forward_time(miopenTensorDescriptor_t input, miopenTensorDescr
 		   (readBytes + outputBytes) / kernel_average_time / 1e6,
 		   kernel_average_time);
 }
+#else
+static void print_forward_time(cudnnTensorDescriptor_t input, cudnnFilterDescriptor_t filter,
+		cudnnTensorDescriptor_t output, const float kernel_average_time) {
+	printf("GPU Kernel Time Forward Conv. Elapsed: %f ms (average)\n", kernel_average_time);
+	int in_n, in_c, in_h, in_w;
+	int wei_n, wei_c, wei_h, wei_w;
+	int out_n, out_c, out_h, out_w;
+
+	cudnnDataType_t dt;
+	cudnnTensorFormat_t fmt;
+    int n_stride, c_stride, h_stride, w_stride;
+
+	CHECK_CUDNN(cudnnGetTensor4dDescriptor(input, &dt,
+				&in_n, &in_c, &in_h, &in_w, &n_stride, &c_stride, &h_stride,
+				&w_stride));
+	CHECK_CUDNN(cudnnGetFilter4dDescriptor(filter, &dt, &fmt, &wei_n, &wei_c,
+				&wei_h, &wei_w));
+	CHECK_CUDNN(cudnnGetTensor4dDescriptor(output, &dt,
+				&out_n, &out_c, &out_h, &out_w, &n_stride, &c_stride, &h_stride,
+				&w_stride));
+
+	debug_msg("input:(%d,%d,%d,%d), filer:(%d,%d,%d,%d), output:(%d,%d,%d,%d)\n",
+			in_n, in_c, in_h, in_w, wei_n, wei_c, wei_h, wei_w, out_n, out_c, out_h, out_w);
+
+	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w;
+	size_t inBytes = in_n * in_c * in_h * in_w * 4;
+	size_t weiBytes = wei_n * wei_c * wei_h * wei_w * 4;
+	size_t readBytes = inBytes + weiBytes;
+	size_t outputBytes = out_n * out_c * out_h * out_w * 4;
+
+	printf("stats: name, n, c, ho, wo, x, y, k, flopCnt, bytesRead, bytesWritten, GFLOPs, "
+			   "GB/s, timeMs\n");
+	printf("stats: %s%dx%d, %u, %u, %u, %u, %u, %u, %u, %zu, %zu, %zu, %.0f, %.0f, %f\n",
+		   "fwd-conv",
+		   wei_h,
+		   wei_w,
+		   in_n,
+		   in_c,
+		   out_h,
+		   out_w,
+		   wei_h,
+		   wei_w,
+		   out_c,
+		   flopCnt,
+		   readBytes,
+		   outputBytes,
+		   flopCnt / kernel_average_time / 1e6,
+		   (readBytes + outputBytes) / kernel_average_time / 1e6,
+		   kernel_average_time);
+}
+#endif
 
 static int conv_driver(int argc, char ** argv){
 	arg_parser parser("conv");
@@ -459,7 +511,7 @@ static int conv_driver(int argc, char ** argv){
 	parser.insert_arg("bias", 'b', "", "Use Bias (Default=0)", "int");
 	parser.insert_arg(
 			"mode", 'm', "cross_correlation",
-			"Convolution Mode (conv, trans) (Default=conv/cross_correlation)", "str");
+			"Convolution Mode (conv/cross_correlation, trans) (Default=conv/cross_correlation)", "str");
 	parser.insert_arg(
 			"pad_mode", 'z', "default", "Padding Mode (same, valid, default) (Default=default)", "str");
 	parser.insert_arg("tensor_vect",
@@ -518,7 +570,7 @@ static int conv_driver(int argc, char ** argv){
 	int time_enabled = parser.get_arg_int("t");
 	int num_iterations = parser.get_arg_int("i");
 
-	debug_msg("Conv(input=(%d,%d,%d,%d), output_channels=(%d), kernel_size=(%d,%d), "
+	debug_msg("Conv2d(input=(%lu,%lu,%lu,%lu), output_channels=(%lu), kernel_size=(%d,%d), "
 			"stride=(%d,%d), padding=(%d,%d), bias=%s\n\tgroups=(%d), "
 			"dilation=(%d,%d))\n",
 			batch, input_c, input_h, input_w, output_c, fil_h, fil_w,
@@ -546,8 +598,6 @@ static int conv_driver(int argc, char ** argv){
 			_ksize, _stride, _pad, _dilation, 2,
 			groups, output_c, input_c, input_h, input_w);
 
-	printf("output_c: %d\n", output_c);
-
 #if 1
 	convolution_desc_t * conv_desc_c = cpu_dev->convolution_desc_create(conv_mode, TENSOR_DT_FLOAT,
 			_ksize, _stride, _pad, _dilation, 2,
@@ -572,11 +622,11 @@ static int conv_driver(int argc, char ** argv){
 
 	t_in = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
 	op_conv->input = t_in;
+	t_filter = gpu_dev->tensor_create(t_filter_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+	op_conv->filter = t_filter;
 	op_conv->infer_shape(t_out_dim);
 	t_out = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
 	op_conv->output = t_out;
-	t_filter = gpu_dev->tensor_create(t_filter_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
-	op_conv->filter = t_filter;
 
 	if(is_bwd){
 		t_in_grad = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
@@ -613,6 +663,21 @@ static int conv_driver(int argc, char ** argv){
 	op_conv->alloc_mem();
 	op_conv_c->tune_op();
 	op_conv_c->alloc_mem();
+
+	/*
+	int out_n, out_c, out_h, out_w;
+#ifdef WITH_CUDNN
+	checkCUDNN(cudnnGetConvolution2dForwardOutputDim(op_conv->conv_desc,
+				(const cudnnTensorDescriptor_t)op_conv->input->desc,
+				(op_convolution_cudnn *)op_conv->filter_desc, &out_n, &out_c, &out_h, &out_w));
+	t_out_dim[0] = out_n;
+	t_out_dim[1] = out_c;
+	t_out_dim[2] = out_h;
+	t_out_dim[3] = out_w;
+	t_out_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+	op_conv_c->output = t_out_c;
+#endif
+*/
 
 	if (in_data != "" && !readBufferFromTxt((float*)t_in_c->mem, t_in_c->elem(), in_data.c_str()))
 		rand_float((float*)t_in_c->mem, t_in_c->elem());
@@ -661,16 +726,17 @@ static int conv_driver(int argc, char ** argv){
 	if (time_enabled) {
 		std::string fwd_algo_name = dynamic_cast<op_convolution*>(op_conv)->get_fwd_algo_name();
 		std::cout << "OpDriver Forward Conv. Algorithm: " << fwd_algo_name << "." << std::endl;
-		/*
-		float kernel_average_time = num_iterations > 1
-										? dt->elapsed() / num_iterations
-										: dt->elapsed();
-										*/
-		
+#ifdef WITH_MIOPEN
 		print_forward_time((miopenTensorDescriptor_t)(dynamic_cast<op_convolution*>(op_conv)->input->desc),
 				(miopenTensorDescriptor_t)(dynamic_cast<op_convolution*>(op_conv)->filter->desc),
 				(miopenTensorDescriptor_t)(dynamic_cast<op_convolution*>(op_conv)->output->desc),
 				dt->elapsed() / num_iterations);
+#else
+		print_forward_time((cudnnTensorDescriptor_t)(dynamic_cast<op_convolution*>(op_conv)->input->desc),
+				(cudnnFilterDescriptor_t)(dynamic_cast<op_convolution_cudnn*>(op_conv)->filter_desc),
+				(cudnnTensorDescriptor_t)(dynamic_cast<op_convolution*>(op_conv)->output->desc),
+				dt->elapsed() / num_iterations);
+#endif
 	}
 #endif
 

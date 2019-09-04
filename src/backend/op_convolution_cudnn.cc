@@ -73,8 +73,10 @@ void op_convolution_cudnn::tune_op(){
                     conv_desc->kernel[0], conv_desc->kernel[1]));
 
         // TODO: set CUDNN_TENSOR_OP_MATH can use tensor core if available, here disable it
+		/*
         CHECK_CUDNN(cudnnSetConvolutionMathType((const cudnnConvolutionDescriptor_t)conv_desc->desc,
                 CUDNN_DEFAULT_MATH));
+				*/
 
         // find fwd algo
         cudnnConvolutionFwdAlgoPerf_t perfs[8];
@@ -112,11 +114,12 @@ void op_convolution_cudnn::tune_op(){
             filter_desc,
             (const cudnnConvolutionDescriptor_t)conv_desc->desc,
             (const cudnnTensorDescriptor_t)output->desc, fwd_algo, &fwd_workspace_size));
-        //fwd_workspace_mem = fwd_workspace_size?
-        //                    dev->ws->get(fwd_workspace_size, input->data_type):
-        //                    nullptr;
+        fwd_workspace_mem = fwd_workspace_size?
+                            dev->ws->get(fwd_workspace_size, input->data_type):
+                            nullptr;
     }
 
+#if 0
     if(!(input_grad && output_grad && filter_grad))
         return ;        // ignore bwd
     if(!backward_data_tuned){
@@ -184,6 +187,7 @@ void op_convolution_cudnn::tune_op(){
         //                        dev->ws->get(bwd_filter_workspace_size, input->data_type):
         //                        nullptr;
     }
+#endif
 }
 
 
@@ -199,11 +203,8 @@ void op_convolution_cudnn::forward(){
     dump_cudnn_tensor_desc((const cudnnTensorDescriptor_t)filter->desc);
     dump_cudnn_tensor_desc((const cudnnTensorDescriptor_t)output->desc);
 #endif
-    float alpha = 1.f;
-    float beta = .0f;
-    fwd_workspace_mem = fwd_workspace_size?
-                        dev->ws->get(fwd_workspace_size, input->data_type):
-                        nullptr;
+    float alpha = 1.0f;
+    float beta = 0.0f;
     CHECK_CUDNN(cudnnConvolutionForward(dev_cuda->handle,
             &alpha,
             (const cudnnTensorDescriptor_t)input->desc, input->mem,

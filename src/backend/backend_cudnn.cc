@@ -1,4 +1,5 @@
 #include "backend.hpp"
+//#include <cudnn.h>
 
 static inline void dump_dev_prop(cudaDeviceProp * prop, int dev_id){
     char * var = getenv("VERBOSE_DEVICE");
@@ -123,6 +124,48 @@ tensor_t * device_cuda::tensor_create(size_t * dims, size_t n_dim,
     //tensor->mem = ptr;
     return tensor;
 }
+
+#if 0
+tensor_t * device_cuda::filter_create(size_t * dims, size_t n_dim, 
+        tensor_data_type data_type, tensor_layout layout){
+    if(n_dim == 1 && layout == TENSOR_LAYOUT_1D){
+        //void* ptr;
+        //CHECK_CUDA(cudaMalloc(&ptr, dims[0]*data_type_unit(data_type)));
+        tensor_t * tensor = new tensor_t;
+        tensor->dim[0] = dims[0];
+        tensor->n_dims = 1;
+        tensor->data_type = data_type;
+        tensor->layout = layout;
+        tensor->desc = nullptr;
+        //tensor->mem = ptr;
+
+        return tensor;
+    }
+    assert(n_dim == 4 && "current only support 4 dim tensor");
+    assert(layout == TENSOR_LAYOUT_NCHW && "current only support NCHW");
+
+    cudnnFilterDescriptor_t desc;
+    CHECK_CUDNN(cudnnCreateFilterDescriptor(&desc));
+    CHECK_CUDNN(cudnnSetFilter4dDescriptor(desc, to_cudnn_data_type(data_type),
+				to_cudnn_layout(layout), dims[0], dims[1], dims[2], dims[3]));
+
+    //void* ptr;
+    //CHECK_CUDA(cudaMalloc(&ptr, dims[0]*dims[1]*dims[2]*dims[3]*data_type_unit(data_type)));
+
+    tensor_t * tensor = new tensor_t;
+    tensor->dim[0] = dims[0];
+    tensor->dim[1] = dims[1];
+    tensor->dim[2] = dims[2];
+    tensor->dim[3] = dims[3];
+    tensor->n_dims = 4;
+    tensor->data_type = data_type;
+    tensor->layout = layout;
+    tensor->desc = desc;
+    //tensor->mem = ptr;
+    return tensor;
+}
+#endif
+
 void device_cuda::tensor_alloc(tensor_t * tensor){
     assert(tensor && !tensor->mem);
     if(tensor->n_dims==1 && tensor->layout==TENSOR_LAYOUT_1D){
@@ -213,16 +256,30 @@ convolution_desc_t * device_cuda::convolution_desc_create(convolution_mode mode,
         int * kernel, int * stride, int * padding, int * dilation, int n_dims,
         int groups, int k, int input_c, int input_h, int input_w)
 {
-    assert(n_dims <= MAX_CONV_DIM && "conv dimension not support");
+    //assert(n_dims <= MAX_CONV_DIM && "conv dimension not support");
     cudnnConvolutionDescriptor_t desc;
     CHECK_CUDNN(cudnnCreateConvolutionDescriptor(&desc));
 
     // dilatoin is supported in cudnn ver>=6.0
+#if 0
     CHECK_CUDNN(cudnnSetConvolutionNdDescriptor(desc, n_dims,
             padding, stride, dilation, to_cudnn_convolution_mode(mode), to_cudnn_data_type(dt)));
-    
-    //if(groups > 1)
-    CHECK_CUDNN(cudnnSetConvolutionGroupCount(desc, groups));
+#else
+	assert(n_dims == 2);
+	
+#if 0
+    CHECK_CUDNN(cudnnSetConvolution2dDescriptor(desc, padding[0], padding[1],
+				stride[0], stride[1], dilation[0], dilation[1],
+				to_cudnn_convolution_mode(mode), to_cudnn_data_type(dt)));
+#endif
+
+    CHECK_CUDNN(cudnnSetConvolution2dDescriptor(desc, padding[0], padding[1],
+				stride[0], stride[1], dilation[0], dilation[1],
+				CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+#endif
+
+    if(groups != 1)
+		CHECK_CUDNN(cudnnSetConvolutionGroupCount(desc, groups));
 
     convolution_desc_t * conv_desc = new convolution_desc_t;
     conv_desc->mode = mode;

@@ -29,7 +29,6 @@ public:
     } while(0)
 
         SAFE_ALLOC(input);
-        SAFE_ALLOC(input);
         SAFE_ALLOC(output);
         SAFE_ALLOC(filter);
         SAFE_ALLOC(input_grad);

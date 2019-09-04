@@ -1,6 +1,6 @@
 #!/bin/sh
 
-WITH_MIOPEN=1
+WITH_CUDNN=1
 
 WITH_CUDNN=`test "X$WITH_CUDNN" = "X" && echo 0 || echo $WITH_CUDNN `
 WITH_MIOPEN=`test "X$WITH_MIOPEN" = "X" && echo 1 || echo $WITH_MIOPEN`

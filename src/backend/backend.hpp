@@ -416,6 +416,10 @@ public:
 
     virtual tensor_t * tensor_create(size_t * dims, size_t n_dim, 
                     tensor_data_type data_type, tensor_layout layout);
+	/*
+    tensor_t * filter_create(size_t * dims, size_t n_dim, 
+                    tensor_data_type data_type, tensor_layout layout);
+					*/
     virtual void tensor_alloc(tensor_t * tensor);
     virtual void tensor_copy(void *dest, void *src, size_t bytes, tensor_copy_kind copy_kind);
     virtual void tensor_destroy(tensor_t * tensor);
