@@ -79,6 +79,7 @@ void op_convolution_cudnn::tune_op(){
 				*/
 
         // find fwd algo
+#if 0
         cudnnConvolutionFwdAlgoPerf_t perfs[8];
         int returned_algos;
 
@@ -106,6 +107,14 @@ void op_convolution_cudnn::tune_op(){
                 break;
             }
         }
+#endif
+#else
+        CHECK_CUDNN(cudnnGetConvolutionForwardAlgorithm(dev_cuda->handle,
+            (const cudnnTensorDescriptor_t)input->desc,
+            filter_desc,
+            (const cudnnConvolutionDescriptor_t)conv_desc->desc,
+            (const cudnnTensorDescriptor_t)output->desc,
+            CUDNN_CONVOLUTION_FWD_PREFER_FASTEST, 0, &fwd_algo));
 #endif
 
         // find workspace
