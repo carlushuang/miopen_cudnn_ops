@@ -79,7 +79,7 @@ void op_convolution_cudnn::tune_op(){
 				*/
 
         // find fwd algo
-#if 0
+#if 1
         cudnnConvolutionFwdAlgoPerf_t perfs[8];
         int returned_algos;
 
@@ -276,4 +276,106 @@ std::string op_convolution_cudnn::get_bwd_data_name(){
 std::string op_convolution_cudnn::get_bwd_filter_name(){
     std::string algo_name(to_cudnn_bwd_filter_algo_name(bwd_filter_algo));
     return algo_name;
+}
+
+void op_convolution_cudnn::print_fwd_time(const float kernel_average_time) {
+	std::string fwd_algo_name = get_fwd_algo_name();
+	std::cout << "OpDriver Forward Conv. Algorithm: " << fwd_algo_name << "." << std::endl;
+
+	printf("GPU Kernel Time Forward Conv. Elapsed: %f ms (average)\n", kernel_average_time);
+	int in_n, in_c, in_h, in_w;
+	int wei_k, wei_c, wei_h, wei_w;
+	int out_n, out_c, out_h, out_w;
+	
+    cudnnDataType_t dt;
+    cudnnTensorFormat_t fmt;
+    int n_stride, c_stride, h_stride, w_stride;
+
+	CHECK_CUDNN(cudnnGetTensor4dDescriptor((cudnnTensorDescriptor_t)input->desc, &dt,
+				&in_n, &in_c, &in_h, &in_w, &n_stride, &c_stride, &h_stride, &w_stride));
+	CHECK_CUDNN(cudnnGetFilter4dDescriptor((cudnnFilterDescriptor_t)filter_desc, &dt,
+				&fmt, &wei_k, &wei_c, &wei_h, &wei_w));
+	CHECK_CUDNN(cudnnGetTensor4dDescriptor((cudnnTensorDescriptor_t)output->desc, &dt,
+				&out_n, &out_c, &out_h, &out_w, &n_stride, &c_stride, &h_stride, &w_stride));
+
+	debug_msg("input:(%d,%d,%d,%d), filer:(%d,%d,%d,%d), output:(%d,%d,%d,%d)\n",
+			in_n, in_c, in_h, in_w, wei_k, wei_c, wei_h, wei_w, out_n, out_c, out_h, out_w);
+
+	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w;
+	size_t inBytes = in_n * in_c * in_h * in_w * 4;
+	size_t weiBytes = wei_k * wei_c * wei_h * wei_w * 4;
+	size_t readBytes = inBytes + weiBytes;
+	size_t outputBytes = out_n * out_c * out_h * out_w * 4;
+
+	printf("stats: name, n, c, ho, wo, x, y, k, flopCnt, bytesRead, bytesWritten, GFLOPs, "
+			   "GB/s, timeMs\n");
+	printf("stats: %s%dx%d, %u, %u, %u, %u, %u, %u, %u, %zu, %zu, %zu, %.0f, %.0f, %f\n",
+		   "fwd-conv",
+		   wei_h,
+		   wei_w,
+		   in_n,
+		   in_c,
+		   out_h,
+		   out_w,
+		   wei_h,
+		   wei_w,
+		   out_c,
+		   flopCnt,
+		   readBytes,
+		   outputBytes,
+		   flopCnt / kernel_average_time / 1e6,
+		   (readBytes + outputBytes) / kernel_average_time / 1e6,
+		   kernel_average_time);
+}
+
+void op_convolution_cudnn::print_bwd_time(const float kernel_average_time) {
+	std::string algo_name = get_bwd_data_name();
+	std::cout << "OpDriver Backward Data Conv. Algorithm: " << algo_name << "." << std::endl;
+
+	printf("GPU Kernel Time Backward Data Conv. Elapsed: %f ms (average)\n", kernel_average_time);
+	int in_n, in_c, in_h, in_w;
+	int wei_k, wei_c, wei_h, wei_w;
+	int out_n, out_c, out_h, out_w;
+	
+    cudnnDataType_t dt;
+    cudnnTensorFormat_t fmt;
+    int n_stride, c_stride, h_stride, w_stride;
+
+	CHECK_CUDNN(cudnnGetTensor4dDescriptor((cudnnTensorDescriptor_t)input->desc, &dt,
+				&in_n, &in_c, &in_h, &in_w, &n_stride, &c_stride, &h_stride,
+				&w_stride));
+	CHECK_CUDNN(cudnnGetFilter4dDescriptor((cudnnFilterDescriptor_t)filter_desc, &dt,
+				&fmt, &wei_k, &wei_c, &wei_h, &wei_w));
+	CHECK_CUDNN(cudnnGetTensor4dDescriptor((cudnnTensorDescriptor_t)output->desc, &dt,
+				&out_n, &out_c, &out_h, &out_w, &n_stride, &c_stride, &h_stride,
+				&w_stride));
+
+	debug_msg("input:(%d,%d,%d,%d), filer:(%d,%d,%d,%d), output:(%d,%d,%d,%d)\n",
+			in_n, in_c, in_h, in_w, wei_k, wei_c, wei_h, wei_w, out_n, out_c, out_h, out_w);
+
+	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w;
+	size_t inBytes = in_n * in_c * in_h * in_w * 4;
+	size_t weiBytes = wei_k * wei_c * wei_h * wei_w * 4;
+	size_t readBytes = inBytes + weiBytes;
+	size_t outputBytes = out_n * out_c * out_h * out_w * 4;
+
+	printf("stats: name, n, c, ho, wo, x, y, k, flopCnt, bytesRead, bytesWritten, GFLOPs, "
+			   "GB/s, timeMs\n");
+	printf("stats: %s%dx%d, %u, %u, %u, %u, %u, %u, %u, %zu, %zu, %zu, %.0f, %.0f, %f\n",
+		   "fwd-conv",
+		   wei_h,
+		   wei_w,
+		   in_n,
+		   in_c,
+		   out_h,
+		   out_w,
+		   wei_h,
+		   wei_w,
+		   out_c,
+		   flopCnt,
+		   readBytes,
+		   outputBytes,
+		   flopCnt / kernel_average_time / 1e6,
+		   (readBytes + outputBytes) / kernel_average_time / 1e6,
+		   kernel_average_time);
 }

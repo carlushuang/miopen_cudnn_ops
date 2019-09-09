@@ -133,6 +133,8 @@ public:
     virtual std::string get_fwd_algo_name();
     virtual std::string get_bwd_data_name();
     virtual std::string get_bwd_filter_name();
+	virtual void print_fwd_time(const float kernel_average_time);
+	virtual void print_bwd_time(const float kernel_average_time);
     cudnnFilterDescriptor_t filter_desc;
     cudnnConvolutionFwdAlgo_t fwd_algo;
     cudnnConvolutionBwdFilterAlgo_t bwd_filter_algo;
