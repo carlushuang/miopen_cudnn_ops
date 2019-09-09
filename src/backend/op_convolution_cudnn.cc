@@ -128,8 +128,7 @@ void op_convolution_cudnn::tune_op(){
                             nullptr;
     }
 
-#if 0
-    if(!(input_grad && output_grad && filter_grad))
+    if(!(input_grad && output_grad))
         return ;        // ignore bwd
     if(!backward_data_tuned){
         backward_data_tuned = 1;
@@ -164,6 +163,10 @@ void op_convolution_cudnn::tune_op(){
         //                        dev->ws->get(bwd_data_workspace_size, input->data_type):
         //                        nullptr;
     }
+
+	if (!filter_grad)
+		return;
+
     if(!backward_filter_tuned){
         backward_filter_tuned = 1;
 
@@ -196,7 +199,6 @@ void op_convolution_cudnn::tune_op(){
         //                        dev->ws->get(bwd_filter_workspace_size, input->data_type):
         //                        nullptr;
     }
-#endif
 }
 
 
@@ -224,7 +226,7 @@ void op_convolution_cudnn::forward(){
             (const cudnnTensorDescriptor_t)output->desc, output->mem));
 }
 void op_convolution_cudnn::backward_data(){
-    assert(input && output && filter && input_grad && output_grad && filter_grad);
+    assert(filter && input_grad && output_grad);
     assert(backward_data_tuned);
     device_cuda * dev_cuda = (device_cuda *)dev;
 
