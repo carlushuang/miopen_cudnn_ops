@@ -557,15 +557,10 @@ static int conv_driver(int argc, char ** argv){
 			groups, output_c, input_c, input_h, input_w);
 #endif
 
-#if 1
 	tensor_t *t_in, *t_out, *t_filter, *t_in_c, *t_out_c, *t_filter_c;
 	tensor_t *t_in_grad, *t_out_grad, *t_filter_grad;
 	tensor_t *t_in_grad_c, *t_out_grad_c, *t_filter_grad_c;
 	operator_base *op_conv, *op_conv_c;
-#else
-	tensor_t *t_in, *t_out, *t_filter;
-	operator_base *op_conv;
-#endif
 	size_t t_in_dim[4] = {batch,input_c,input_h,input_w};
 	size_t t_filter_dim[4] = {(size_t)output_c, (size_t)(input_c/groups), (size_t)fil_h, (size_t)fil_w};
 	size_t t_out_dim[4];
@@ -584,9 +579,12 @@ static int conv_driver(int argc, char ** argv){
 	if(is_bwd){
 		t_in_grad = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
 		t_out_grad = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
-		t_filter_grad = gpu_dev->tensor_create(t_filter_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
 		op_conv->input_grad = t_in_grad;
 		op_conv->output_grad = t_out_grad;
+	}
+
+	if (is_wrw) {
+		t_filter_grad = gpu_dev->tensor_create(t_filter_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
 		op_conv->filter_grad = t_filter_grad;
 	}
 
@@ -660,13 +658,6 @@ static int conv_driver(int argc, char ** argv){
 		}
 		dt->stop();
 
-		/*
-		if (time_enabled)
-			dynamic_cast<op_convolution*>(op_conv)->print_fwd_time(dt->elapsed() / num_iterations);
-		std::string fwd_algo_name = dynamic_cast<op_convolution*>(op_conv)->get_fwd_algo_name();
-		std::cout << "OpDriver Forward Conv. Algorithm: " << fwd_algo_name << "." << std::endl;
-		op_conv->print_fwd_time(dt->elapsed() / num_iterations);
-		*/
 		if (time_enabled)
 			op_conv->print_fwd_time(dt->elapsed() / num_iterations);
 
@@ -678,7 +669,6 @@ static int conv_driver(int argc, char ** argv){
 		}
 	}
 
-#if 0
 	if (is_bwd) {
 		dt->reset();
 		dt->start();
@@ -688,7 +678,7 @@ static int conv_driver(int argc, char ** argv){
 		dt->stop();
 
 		if (time_enabled)
-			dynamic_cast<op_convolution*>(op_conv)->print_bwd_time(dt->elapsed() / num_iterations);
+			op_conv->print_bwd_time(dt->elapsed() / num_iterations);
 
 		if (is_save_out) {
 			float * bwd_out = new float[t_in_grad->elem()];
@@ -698,6 +688,7 @@ static int conv_driver(int argc, char ** argv){
 		}
 	}
 
+#if 0
 	if (is_wrw) {
 		dt->reset();
 		dt->start();
