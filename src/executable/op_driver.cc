@@ -162,7 +162,7 @@ static device_base * gpu_dev;
 static device_base * cpu_dev;
 
 template <typename T>
-void dumpBufferToTxt(const char* fileName, T* data, size_t dataNumItems)
+void writeToTxt(const char* fileName, T* data, size_t dataNumItems)
 {
 	std::ofstream outFile(fileName, std::ios::binary);
 
@@ -181,7 +181,7 @@ void dumpBufferToTxt(const char* fileName, T* data, size_t dataNumItems)
 }
 
 template <typename T>
-bool readBufferFromTxt(T *data, size_t dataNumItems, const char* fileName)
+bool readFromTxt(T *data, size_t dataNumItems, const char* fileName)
 {
 	std::ifstream infile(fileName, std::ios::binary);
 
@@ -349,57 +349,7 @@ static int pooling_driver(int argc, char ** argv){
 }
 #endif
 
-#ifdef WITH_MIOPEN
-static void print_forward_time(miopenTensorDescriptor_t input, miopenTensorDescriptor_t filter,
-		miopenTensorDescriptor_t output, const float kernel_average_time) {
-	printf("GPU Kernel Time Forward Conv. Elapsed: %f ms (average)\n", kernel_average_time);
-	int in_n, in_c, in_h, in_w;
-	int wei_n, wei_c, wei_h, wei_w;
-	int out_n, out_c, out_h, out_w;
-
-    miopenDataType_t dt;
-    int n_stride, c_stride, h_stride, w_stride;
-
-	CHECK_MIO(miopenGet4dTensorDescriptor(input, &dt,
-				&in_n, &in_c, &in_h, &in_w, &n_stride, &c_stride, &h_stride,
-				&w_stride));
-	CHECK_MIO(miopenGet4dTensorDescriptor(filter, &dt,
-				&wei_n, &wei_c, &wei_h, &wei_w, &n_stride, &c_stride, &h_stride,
-				&w_stride));
-	CHECK_MIO(miopenGet4dTensorDescriptor(output, &dt,
-				&out_n, &out_c, &out_h, &out_w, &n_stride, &c_stride, &h_stride,
-				&w_stride));
-
-	debug_msg("input:(%d,%d,%d,%d), filer:(%d,%d,%d,%d), output:(%d,%d,%d,%d)\n",
-			in_n, in_c, in_h, in_w, wei_n, wei_c, wei_h, wei_w, out_n, out_c, out_h, out_w);
-
-	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w;
-	size_t inBytes = in_n * in_c * in_h * in_w * 4;
-	size_t weiBytes = wei_n * wei_c * wei_h * wei_w * 4;
-	size_t readBytes = inBytes + weiBytes;
-	size_t outputBytes = out_n * out_c * out_h * out_w * 4;
-
-	printf("stats: name, n, c, ho, wo, x, y, k, flopCnt, bytesRead, bytesWritten, GFLOPs, "
-			   "GB/s, timeMs\n");
-	printf("stats: %s%dx%d, %u, %u, %u, %u, %u, %u, %u, %zu, %zu, %zu, %.0f, %.0f, %f\n",
-		   "fwd-conv",
-		   wei_h,
-		   wei_w,
-		   in_n,
-		   in_c,
-		   out_h,
-		   out_w,
-		   wei_h,
-		   wei_w,
-		   out_c,
-		   flopCnt,
-		   readBytes,
-		   outputBytes,
-		   flopCnt / kernel_average_time / 1e6,
-		   (readBytes + outputBytes) / kernel_average_time / 1e6,
-		   kernel_average_time);
-}
-#else
+#ifdef WITH_CUDNN
 static void print_forward_time(cudnnTensorDescriptor_t input, cudnnFilterDescriptor_t filter,
 		cudnnTensorDescriptor_t output, const float kernel_average_time) {
 	printf("GPU Kernel Time Forward Conv. Elapsed: %f ms (average)\n", kernel_average_time);
@@ -565,8 +515,9 @@ static int conv_driver(int argc, char ** argv){
 	int bias = parser.get_arg_int("b");
 	std::string cmode = parser.get_arg("m");
 	int fmode = parser.get_arg_int("F");
-	int is_fwd = (fmode == 1 || fmode == 3 ) ? 1 : 0;
-	int is_bwd = (fmode == 2 || fmode == 3 ) ? 1 : 0;
+	int is_fwd = (fmode == 0 || fmode == 1 || fmode == 3 || fmode == 5) ? 1 : 0;
+	int is_bwd = (fmode == 0 || fmode == 2 || fmode == 3 || fmode == 6) ? 1 : 0;
+	int is_wrw = (fmode == 0 || fmode == 4 || fmode == 5 || fmode == 6) ? 1 : 0;
 	int time_enabled = parser.get_arg_int("t");
 	int num_iterations = parser.get_arg_int("i");
 
@@ -577,9 +528,11 @@ static int conv_driver(int argc, char ** argv){
 			stride_h, stride_w, pad_h, pad_w, bias > 0 ? "True" : "False",
 			groups, dilation_h, dilation_w);
 
-	std::string in_data = parser.get_arg("d");
-	std::string in_weights = parser.get_arg("e");
-	std::string in_bias = parser.get_arg("a");
+	std::string in_x = parser.get_arg("d");
+	std::string in_w = parser.get_arg("e");
+	std::string in_b = parser.get_arg("a");
+	std::string in_dy = parser.get_arg("D");
+
 	int is_save_out = parser.get_arg_int("o");
 
 	assert( (input_c%groups)==0 && "group conv must evenly devide input channel!");
@@ -679,10 +632,10 @@ static int conv_driver(int argc, char ** argv){
 #endif
 */
 
-	if (in_data != "" && !readBufferFromTxt((float*)t_in_c->mem, t_in_c->elem(), in_data.c_str()))
+	if (in_x != "" && !readFromTxt((float*)t_in_c->mem, t_in_c->elem(), in_x.c_str()))
 		rand_float((float*)t_in_c->mem, t_in_c->elem());
 
-	if (in_weights != "" && !readBufferFromTxt((float*)t_filter_c->mem, t_filter_c->elem(), in_weights.c_str()))
+	if (in_w != "" && !readFromTxt((float*)t_filter_c->mem, t_filter_c->elem(), in_w.c_str()))
 		rand_float((float*)t_in_c->mem, t_in_c->elem());
 
 	// host to gpu
@@ -690,23 +643,86 @@ static int conv_driver(int argc, char ** argv){
 	gpu_dev->tensor_copy(t_filter, t_filter_c->mem, t_filter_c->bytes(), TENSOR_COPY_H2D);
 
 	if(is_bwd){
-		rand_float((float*)t_out_grad_c->mem, t_out_grad_c->elem());
-		gpu_dev->tensor_copy(t_out_grad, t_out_grad_c->mem, t_out_grad_c->bytes(), TENSOR_COPY_H2D);
-		rand_float((float*)t_filter_grad_c->mem, t_filter_grad_c->elem());
-		gpu_dev->tensor_copy(t_filter_grad, t_filter_grad_c->mem, t_filter_grad_c->bytes(), TENSOR_COPY_H2D);
+		if (in_dy != "" && !readFromTxt((float*)t_out_grad_c->mem,
+					t_out_grad_c->elem(), in_dy.c_str()))
+			rand_float((float*)t_out_grad_c->mem, t_out_grad_c->elem());
 
-		//cpu_dev->tensor_set(t_filter_grad_c, 0);
-		cpu_dev->tensor_set(t_in_grad_c, 0);
-		//gpu_dev->tensor_set(t_filter_grad, 0);
-		gpu_dev->tensor_set(t_in_grad, 0);
+		gpu_dev->tensor_copy(t_out_grad, t_out_grad_c->mem, t_out_grad_c->bytes(), TENSOR_COPY_H2D);
 	}
 
 	device_timer_t * dt = gpu_dev->device_timer_create();
+
+	if (is_fwd) {
+		dt->reset();
+		dt->start();
+		for(int l=0;l<num_iterations;l++){
+			op_conv->forward();
+		}
+		dt->stop();
+
+		/*
+		if (time_enabled)
+			dynamic_cast<op_convolution*>(op_conv)->print_fwd_time(dt->elapsed() / num_iterations);
+		std::string fwd_algo_name = dynamic_cast<op_convolution*>(op_conv)->get_fwd_algo_name();
+		std::cout << "OpDriver Forward Conv. Algorithm: " << fwd_algo_name << "." << std::endl;
+		op_conv->print_fwd_time(dt->elapsed() / num_iterations);
+		*/
+		if (time_enabled)
+			op_conv->print_fwd_time(dt->elapsed() / num_iterations);
+
+		if (is_save_out) {
+			float * fwd_out = new float[t_out->elem()];
+			gpu_dev->tensor_copy(fwd_out, t_out, t_out->bytes(), TENSOR_COPY_D2H);
+			writeToTxt("conv_fwd_out.txt", fwd_out, t_out->elem());
+			delete[] fwd_out;
+		}
+	}
+
+#if 0
+	if (is_bwd) {
+		dt->reset();
+		dt->start();
+		for(int l=0;l<num_iterations;l++){
+			op_conv->backward_data();
+		}
+		dt->stop();
+
+		if (time_enabled)
+			dynamic_cast<op_convolution*>(op_conv)->print_bwd_time(dt->elapsed() / num_iterations);
+
+		if (is_save_out) {
+			float * bwd_out = new float[t_in_grad->elem()];
+			gpu_dev->tensor_copy(bwd_out, t_in_grad, t_in_grad->bytes(), TENSOR_COPY_D2H);
+			writeToTxt("conv_bwd_out.txt", bwd_out, t_in_grad->elem());
+			delete[] bwd_out;
+		}
+	}
+
+	if (is_wrw) {
+		dt->reset();
+		dt->start();
+		for(int l=0;l<num_iterations;l++){
+			op_conv->backward_filter();
+		}
+		dt->stop();
+
+		if (time_enabled)
+			dynamic_cast<op_convolution*>(op_conv)->print_wrw_time(dt->elapsed() / num_iterations);
+
+		if (is_save_out) {
+			float * wrw_out = new float[t_filter_grad->elem()];
+			gpu_dev->tensor_copy(wrw_out, t_filter_grad, t_filter_grad->bytes(), TENSOR_COPY_D2H);
+			writeToTxt("conv_wrw_out.txt", wrw_out, t_filter_grad->elem());
+			delete[] wrw_out;
+		}
+	}
+#endif
+
 #if 0
 	for(int l=0;l<LOOP_WARMUP;l++){
 		op_conv->forward();
 	}
-#endif
+	dt->reset();
 	dt->start();
 	for(int l=0;l<num_iterations;l++){
 		op_conv->forward();
@@ -718,13 +734,13 @@ static int conv_driver(int argc, char ** argv){
 		std::cout << "OpDriver Forward Conv. Algorithm: " << fwd_algo_name << "." << std::endl;
 		op_conv->print_fwd_time(dt->elapsed() / num_iterations);
 	}
-#endif
 
 	if (is_save_out) {
 		float * dev_out = new float[t_out->elem()];
 		gpu_dev->tensor_copy(dev_out, t_out, t_out->bytes(), TENSOR_COPY_D2H);
 		dumpBufferToTxt("conv_out.txt", dev_out, t_out->elem());
 	}
+#endif
 
 #if 0
 	if(!is_fwd){

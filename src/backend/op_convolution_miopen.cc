@@ -253,6 +253,9 @@ std::string op_convolution_miopen::get_bwd_filter_name(){
 }
 
 void op_convolution_miopen::print_fwd_time(const float kernel_average_time) {
+	std::string fwd_algo_name = get_fwd_algo_name();
+	std::cout << "OpDriver Forward Conv. Algorithm: " << fwd_algo_name << "." << std::endl;
+
 	printf("GPU Kernel Time Forward Conv. Elapsed: %f ms (average)\n", kernel_average_time);
 	int in_n, in_c, in_h, in_w;
 	int wei_n, wei_c, wei_h, wei_w;
