@@ -38,7 +38,7 @@ public:
 #undef SAFE_ALLOC
     }
 
-//	virtual void print_forward_time(const float kernel_average_time) = 0;
+	virtual void print_fwd_time(const float kernel_average_time) = 0;
 
     tensor_t * input ={nullptr};
     tensor_t * output ={nullptr};
@@ -86,7 +86,7 @@ public:
     virtual std::string get_bwd_data_name(){return std::string("");}
     virtual std::string get_bwd_filter_name(){return std::string("");}
 
-//	virtual void print_forward_time(const float kernel_average_time) {};
+	virtual void print_fwd_time(const float kernel_average_time) {}
 
     convolution_desc_t * conv_desc;
 
@@ -111,7 +111,7 @@ public:
     virtual std::string get_fwd_algo_name();
     virtual std::string get_bwd_data_name();
     virtual std::string get_bwd_filter_name();
-//	virtual void print_forward_time(const float kernel_average_time);
+	virtual void print_fwd_time(const float kernel_average_time);
     miopenConvFwdAlgorithm_t fwd_algo;
     miopenConvBwdWeightsAlgorithm_t bwd_weights_algo;
     miopenConvBwdDataAlgorithm_t bwd_data_algo;

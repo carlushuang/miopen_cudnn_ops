@@ -713,30 +713,10 @@ static int conv_driver(int argc, char ** argv){
 	}
 	dt->stop();
 
-#if 0
-	//debug_msg("N\tC\tH\tW\tK\tR\tS\tP\tQ\tmem\tcost(ms)\n");
-	char mem_str[20];
-	b2s( dynamic_cast<op_convolution*>(op_conv)->fwd_workspace_size , mem_str);
-	std::string fwd_algo_name = dynamic_cast<op_convolution*>(op_conv)->get_fwd_algo_name();
-	debug_msg("%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%f\t%s\t%s\n",
-			batch,input_c,input_h,input_w, output_c,fil_h
-			,fil_w, pad_h ,pad_w,
-			cost_per_loop, mem_str, fwd_algo_name.c_str());
-#else
 	if (time_enabled) {
 		std::string fwd_algo_name = dynamic_cast<op_convolution*>(op_conv)->get_fwd_algo_name();
 		std::cout << "OpDriver Forward Conv. Algorithm: " << fwd_algo_name << "." << std::endl;
-#ifdef WITH_MIOPEN
-		print_forward_time((miopenTensorDescriptor_t)(dynamic_cast<op_convolution*>(op_conv)->input->desc),
-				(miopenTensorDescriptor_t)(dynamic_cast<op_convolution*>(op_conv)->filter->desc),
-				(miopenTensorDescriptor_t)(dynamic_cast<op_convolution*>(op_conv)->output->desc),
-				dt->elapsed() / num_iterations);
-#else
-		print_forward_time((cudnnTensorDescriptor_t)(dynamic_cast<op_convolution*>(op_conv)->input->desc),
-				(cudnnFilterDescriptor_t)(dynamic_cast<op_convolution_cudnn*>(op_conv)->filter_desc),
-				(cudnnTensorDescriptor_t)(dynamic_cast<op_convolution*>(op_conv)->output->desc),
-				dt->elapsed() / num_iterations);
-#endif
+		op_conv->print_fwd_time(dt->elapsed() / num_iterations);
 	}
 #endif
 
