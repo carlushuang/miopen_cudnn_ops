@@ -13,6 +13,8 @@
 
 #include <unistd.h>
 
+#include "naive_conv.h"
+
 #define EF_PRT
 
 #define LOOP_WARMUP 2
@@ -468,6 +470,7 @@ static int conv_driver(int argc, char ** argv){
 	int is_wrw = (fmode == 0 || fmode == 4 || fmode == 5 || fmode == 6) ? 1 : 0;
 	int time_enabled = parser.get_arg_int("t");
 	int num_iterations = parser.get_arg_int("i");
+	int is_verify = parser.get_arg_int("V");
 
 	debug_msg("Conv2d(input=(%lu,%lu,%lu,%lu), output_channels=(%lu), kernel_size=(%d,%d), "
 			"stride=(%d,%d), padding=(%d,%d), bias=%s\n\tgroups=(%d), "
@@ -563,36 +566,29 @@ static int conv_driver(int argc, char ** argv){
 	op_conv_c->tune_op();
 	op_conv_c->alloc_mem();
 
-	/*
-	int out_n, out_c, out_h, out_w;
-#ifdef WITH_CUDNN
-	checkCUDNN(cudnnGetConvolution2dForwardOutputDim(op_conv->conv_desc,
-				(const cudnnTensorDescriptor_t)op_conv->input->desc,
-				(op_convolution_cudnn *)op_conv->filter_desc, &out_n, &out_c, &out_h, &out_w));
-	t_out_dim[0] = out_n;
-	t_out_dim[1] = out_c;
-	t_out_dim[2] = out_h;
-	t_out_dim[3] = out_w;
-	t_out_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
-	op_conv_c->output = t_out_c;
-#endif
-*/
-
-	if (in_x != "" && !readFromTxt((float*)t_in_c->mem, t_in_c->elem(), in_x.c_str()))
+	if (in_x == "") {
 		rand_float((float*)t_in_c->mem, t_in_c->elem());
-
-	if (in_w != "" && !readFromTxt((float*)t_filter_c->mem, t_filter_c->elem(), in_w.c_str()))
-		rand_float((float*)t_in_c->mem, t_in_c->elem());
-
-	// host to gpu
+	} else {
+		if (!readFromTxt((float*)t_in_c->mem, t_in_c->elem(), in_x.c_str()))
+			rand_float((float*)t_in_c->mem, t_in_c->elem());
+	}
 	gpu_dev->tensor_copy(t_in, t_in_c->mem, t_in_c->bytes(), TENSOR_COPY_H2D);
+
+	if (in_w == "") {
+		rand_float((float*)t_filter_c->mem, t_filter_c->elem());
+	} else {
+		if (!readFromTxt((float*)t_filter_c->mem, t_filter_c->elem(), in_w.c_str()))
+			rand_float((float*)t_filter_c->mem, t_filter_c->elem());
+	}
 	gpu_dev->tensor_copy(t_filter, t_filter_c->mem, t_filter_c->bytes(), TENSOR_COPY_H2D);
 
 	if(is_bwd){
-		if (in_dy != "" && !readFromTxt((float*)t_out_grad_c->mem,
-					t_out_grad_c->elem(), in_dy.c_str()))
+		if (in_dy == "") {
 			rand_float((float*)t_out_grad_c->mem, t_out_grad_c->elem());
-
+		} else {
+			if (!readFromTxt((float*)t_out_grad_c->mem, t_out_grad_c->elem(), in_dy.c_str()))
+				rand_float((float*)t_out_grad_c->mem, t_out_grad_c->elem());
+		}
 		gpu_dev->tensor_copy(t_out_grad, t_out_grad_c->mem, t_out_grad_c->bytes(), TENSOR_COPY_H2D);
 	}
 
@@ -608,6 +604,27 @@ static int conv_driver(int argc, char ** argv){
 
 		if (time_enabled)
 			op_conv->print_fwd_time(dt->elapsed() / num_iterations);
+
+		if (is_verify) {
+			float *fwd_out_cpu = new float[t_out_c->elem()];
+			float err{0.};
+			naive_conv_fwd_nchw((const float *)t_in_c->mem,
+					(const float *)t_filter_c->mem, fwd_out_cpu, batch,
+					input_w, input_h, input_c, output_c, fil_w, fil_h,
+					pad_w, pad_h, stride_w, stride_h, dilation_w,
+					dilation_h);
+
+			float *fwd_out_gpu = new float[t_out_c->elem()];
+			gpu_dev->tensor_copy(fwd_out_gpu, t_out, t_out->bytes(), TENSOR_COPY_D2H);
+			if (valid_vector_rms(fwd_out_gpu, fwd_out_cpu, t_out_c->elem(), &err))
+				std::cout << "Forward Convolution Verifies on CPU "
+					"and GPU (" << err << ')'<< std::endl;
+			else
+				std::cout << "Forward Convolution Failed: " <<
+					err << std::endl;
+			delete[] fwd_out_cpu;
+			delete[] fwd_out_gpu;
+		}
 
 		if (is_save_out) {
 			float * fwd_out = new float[t_out->elem()];
@@ -627,6 +644,27 @@ static int conv_driver(int argc, char ** argv){
 
 		if (time_enabled)
 			op_conv->print_bwd_time(dt->elapsed() / num_iterations);
+
+		if (is_verify) {
+			float *in_grad_cpu = new float[t_in_grad_c->elem()];
+			float err{0.};
+			naive_conv_bwd_d_nchw(in_grad_cpu, (const float *)t_filter_c->mem,
+					(const float *)t_out_grad_c->mem, batch,
+					input_w, input_h, input_c, output_c, fil_w, fil_h,
+					pad_w, pad_h, stride_w, stride_h, dilation_w,
+					dilation_h);
+
+			float *in_grad_gpu = new float[t_in_grad_c->elem()];
+			gpu_dev->tensor_copy(in_grad_gpu, t_in_grad, t_in_grad->bytes(), TENSOR_COPY_D2H);
+			if (valid_vector_rms(in_grad_gpu, in_grad_cpu, t_in_grad_c->elem(), &err))
+				std::cout << "Backward Convolution Data Verifies on CPU "
+					"and GPU (" << err << ')'<< std::endl;
+			else
+				std::cout << "Backward Convolution Data Failed: " <<
+					err << std::endl;
+			delete[] in_grad_gpu;
+			delete[] in_grad_cpu;
+		}
 
 		if (is_save_out) {
 			float * bwd_out = new float[t_in_grad->elem()];
