@@ -171,7 +171,7 @@ void writeToTxt(const char* fileName, T* data, size_t dataNumItems)
 	if(outFile)
 	{    
 		for (size_t i = 0; i < dataNumItems; i++)
-			outFile << std::setprecision(9) << data[i] << ' ';
+			outFile << std::setprecision(18) << data[i] << ' ';
 		outFile << std::endl;
 		outFile.close();
 		debug_msg("Wrote output to file %s\n", fileName);
@@ -674,7 +674,6 @@ static int conv_driver(int argc, char ** argv){
 		}
 	}
 
-#if 0
 	if (is_wrw) {
 		dt->reset();
 		dt->start();
@@ -684,7 +683,31 @@ static int conv_driver(int argc, char ** argv){
 		dt->stop();
 
 		if (time_enabled)
-			dynamic_cast<op_convolution*>(op_conv)->print_wrw_time(dt->elapsed() / num_iterations);
+			op_conv->print_wrw_time(dt->elapsed() / num_iterations);
+
+		if (is_verify) {
+			float *filter_grad_cpu = new float[t_filter_grad_c->elem()];
+			float err{0.};
+			float *in_grad_gpu = new float[t_in_grad_c->elem()];
+			gpu_dev->tensor_copy(in_grad_gpu, t_in_grad, t_in_grad->bytes(), TENSOR_COPY_D2H);
+			naive_conv_bwd_f_nchw((const float *)in_grad_gpu, filter_grad_cpu,
+					(const float *)t_out_grad_c->mem, batch,
+					input_w, input_h, input_c, output_c, fil_w, fil_h,
+					pad_w, pad_h, stride_w, stride_h, dilation_w,
+					dilation_h);
+
+			float *filter_grad_gpu = new float[t_filter_grad_c->elem()];
+			gpu_dev->tensor_copy(filter_grad_gpu, t_filter_grad, t_filter_grad->bytes(), TENSOR_COPY_D2H);
+			if (valid_vector_rms(filter_grad_gpu, filter_grad_cpu, t_filter_grad_c->elem(), &err))
+				std::cout << "Backward Convolution Weights Verifies on CPU "
+					"and GPU (" << err << ')'<< std::endl;
+			else
+				std::cout << "Backward Convolution Weights Failed: " <<
+					err << std::endl;
+			delete[] filter_grad_gpu;
+			delete[] filter_grad_cpu;
+			delete[] in_grad_gpu;
+		}
 
 		if (is_save_out) {
 			float * wrw_out = new float[t_filter_grad->elem()];
@@ -693,7 +716,6 @@ static int conv_driver(int argc, char ** argv){
 			delete[] wrw_out;
 		}
 	}
-#endif
 
 #if 0
 	for(int l=0;l<LOOP_WARMUP;l++){

@@ -40,6 +40,7 @@ public:
 
 	virtual void print_fwd_time(const float kernel_average_time) = 0;
 	virtual void print_bwd_time(const float kernel_average_time) = 0;
+	virtual void print_wrw_time(const float kernel_average_time) = 0;
 
     tensor_t * input ={nullptr};
     tensor_t * output ={nullptr};
@@ -89,6 +90,7 @@ public:
 
 	virtual void print_fwd_time(const float kernel_average_time) {}
 	virtual void print_bwd_time(const float kernel_average_time) {}
+	virtual void print_wrw_time(const float kernel_average_time) {}
 
     convolution_desc_t * conv_desc;
 
@@ -115,6 +117,7 @@ public:
     virtual std::string get_bwd_filter_name();
 	virtual void print_fwd_time(const float kernel_average_time);
 	virtual void print_bwd_time(const float kernel_average_time);
+	virtual void print_wrw_time(const float kernel_average_time);
     miopenConvFwdAlgorithm_t fwd_algo;
     miopenConvBwdWeightsAlgorithm_t bwd_weights_algo;
     miopenConvBwdDataAlgorithm_t bwd_data_algo;
@@ -135,6 +138,7 @@ public:
     virtual std::string get_bwd_filter_name();
 	virtual void print_fwd_time(const float kernel_average_time);
 	virtual void print_bwd_time(const float kernel_average_time);
+	virtual void print_wrw_time(const float kernel_average_time);
     cudnnFilterDescriptor_t filter_desc;
     cudnnConvolutionFwdAlgo_t fwd_algo;
     cudnnConvolutionBwdFilterAlgo_t bwd_filter_algo;
