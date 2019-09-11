@@ -688,15 +688,13 @@ static int conv_driver(int argc, char ** argv){
 		if (is_verify) {
 			float *filter_grad_cpu = new float[t_filter_grad_c->elem()];
 			float err{0.};
-			float *in_grad_gpu = new float[t_in_grad_c->elem()];
-			gpu_dev->tensor_copy(in_grad_gpu, t_in_grad, t_in_grad->bytes(), TENSOR_COPY_D2H);
-			naive_conv_bwd_f_nchw((const float *)in_grad_gpu, filter_grad_cpu,
+			naive_conv_bwd_f_nchw((const float *)t_in_c->mem, filter_grad_cpu,
 					(const float *)t_out_grad_c->mem, batch,
 					input_w, input_h, input_c, output_c, fil_w, fil_h,
 					pad_w, pad_h, stride_w, stride_h, dilation_w,
 					dilation_h);
 
-			float *filter_grad_gpu = new float[t_filter_grad_c->elem()];
+			float *filter_grad_gpu = new float[t_filter_grad->elem()];
 			gpu_dev->tensor_copy(filter_grad_gpu, t_filter_grad, t_filter_grad->bytes(), TENSOR_COPY_D2H);
 			if (valid_vector_rms(filter_grad_gpu, filter_grad_cpu, t_filter_grad_c->elem(), &err))
 				std::cout << "Backward Convolution Weights Verifies on CPU "
@@ -706,7 +704,6 @@ static int conv_driver(int argc, char ** argv){
 					err << std::endl;
 			delete[] filter_grad_gpu;
 			delete[] filter_grad_cpu;
-			delete[] in_grad_gpu;
 		}
 
 		if (is_save_out) {

@@ -159,7 +159,7 @@ void op_convolution_miopen::tune_op(){
             (const miopenTensorDescriptor_t)filter_grad->desc,
             &bwd_filter_workspace_size));
         bwd_filter_workspace_mem = bwd_filter_workspace_size?
-                                dev->ws->get(bwd_filter_workspace_size, input->data_type):
+                                dev->ws->get(bwd_filter_workspace_size, input_grad->data_type):
                                 nullptr;
 
         miopenConvAlgoPerf_t perfs[5];
@@ -225,7 +225,7 @@ void op_convolution_miopen::backward_data(){
         bwd_data_workspace_mem, bwd_data_workspace_size));
 }
 void op_convolution_miopen::backward_filter(){
-    assert(input && output && filter && input_grad && output_grad && filter_grad);
+    assert(input_grad && output_grad && filter_grad);
     assert(backward_filter_tuned);
     device_hip * dev_hip = (device_hip *)dev;
 
