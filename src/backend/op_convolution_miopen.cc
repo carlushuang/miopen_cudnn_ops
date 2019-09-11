@@ -116,7 +116,6 @@ void op_convolution_miopen::tune_op(){
     if(!(input_grad && output_grad))
         return ;        // ignore bwd
     if(!backward_data_tuned){
-		printf("bwd tune_op\n");
         backward_data_tuned = 1;
         CHECK_MIO(miopenConvolutionBackwardDataGetWorkSpaceSize(dev_hip->handle,
             (const miopenTensorDescriptor_t)output_grad->desc,
@@ -266,7 +265,7 @@ void op_convolution_miopen::print_fwd_time(const float kernel_average_time) {
 
 	printf("GPU Kernel Time Forward Conv. Elapsed: %f ms (average)\n", kernel_average_time);
 	int in_n, in_c, in_h, in_w;
-	int wei_n, wei_c, wei_h, wei_w;
+	int wei_k, wei_c, wei_h, wei_w;
 	int out_n, out_c, out_h, out_w;
 	
     miopenDataType_t dt;
@@ -276,18 +275,18 @@ void op_convolution_miopen::print_fwd_time(const float kernel_average_time) {
 				&in_n, &in_c, &in_h, &in_w, &n_stride, &c_stride, &h_stride,
 				&w_stride));
 	CHECK_MIO(miopenGet4dTensorDescriptor((miopenTensorDescriptor_t)filter->desc, &dt,
-				&wei_n, &wei_c, &wei_h, &wei_w, &n_stride, &c_stride, &h_stride,
+				&wei_k, &wei_c, &wei_h, &wei_w, &n_stride, &c_stride, &h_stride,
 				&w_stride));
 	CHECK_MIO(miopenGet4dTensorDescriptor((miopenTensorDescriptor_t)output->desc, &dt,
 				&out_n, &out_c, &out_h, &out_w, &n_stride, &c_stride, &h_stride,
 				&w_stride));
 
 	debug_msg("input:(%d,%d,%d,%d), filer:(%d,%d,%d,%d), output:(%d,%d,%d,%d)\n",
-			in_n, in_c, in_h, in_w, wei_n, wei_c, wei_h, wei_w, out_n, out_c, out_h, out_w);
+			in_n, in_c, in_h, in_w, wei_k, wei_c, wei_h, wei_w, out_n, out_c, out_h, out_w);
 
 	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w;
 	size_t inBytes = in_n * in_c * in_h * in_w * 4;
-	size_t weiBytes = wei_n * wei_c * wei_h * wei_w * 4;
+	size_t weiBytes = wei_k * wei_c * wei_h * wei_w * 4;
 	size_t readBytes = inBytes + weiBytes;
 	size_t outputBytes = out_n * out_c * out_h * out_w * 4;
 
@@ -318,7 +317,7 @@ void op_convolution_miopen::print_bwd_time(const float kernel_average_time) {
 
 	printf("GPU Kernel Time Backward Data Conv. Elapsed: %f ms (average)\n", kernel_average_time);
 	int in_n, in_c, in_h, in_w;
-	int wei_n, wei_c, wei_h, wei_w;
+	int wei_k, wei_c, wei_h, wei_w;
 	int out_n, out_c, out_h, out_w;
 	
     miopenDataType_t dt;
@@ -328,20 +327,70 @@ void op_convolution_miopen::print_bwd_time(const float kernel_average_time) {
 				&in_n, &in_c, &in_h, &in_w, &n_stride, &c_stride, &h_stride,
 				&w_stride));
 	CHECK_MIO(miopenGet4dTensorDescriptor((miopenTensorDescriptor_t)filter->desc, &dt,
-				&wei_n, &wei_c, &wei_h, &wei_w, &n_stride, &c_stride, &h_stride,
+				&wei_k, &wei_c, &wei_h, &wei_w, &n_stride, &c_stride, &h_stride,
 				&w_stride));
 	CHECK_MIO(miopenGet4dTensorDescriptor((miopenTensorDescriptor_t)output->desc, &dt,
 				&out_n, &out_c, &out_h, &out_w, &n_stride, &c_stride, &h_stride,
 				&w_stride));
 
 	debug_msg("input:(%d,%d,%d,%d), filer:(%d,%d,%d,%d), output:(%d,%d,%d,%d)\n",
-			in_n, in_c, in_h, in_w, wei_n, wei_c, wei_h, wei_w, out_n, out_c, out_h, out_w);
+			in_n, in_c, in_h, in_w, wei_k, wei_c, wei_h, wei_w, out_n, out_c, out_h, out_w);
 
 	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w;
 	size_t inBytes = in_n * in_c * in_h * in_w * 4;
-	size_t weiBytes = wei_n * wei_c * wei_h * wei_w * 4;
+	size_t weiBytes = wei_k * wei_c * wei_h * wei_w * 4;
 	size_t readBytes = inBytes + weiBytes;
 	size_t outputBytes = out_n * out_c * out_h * out_w * 4;
+
+	printf("stats: name, n, c, ho, wo, x, y, k, flopCnt, bytesRead, bytesWritten, GFLOPs, "
+			   "GB/s, timeMs\n");
+	printf("stats: %s%dx%d, %u, %u, %u, %u, %u, %u, %u, %zu, %zu, %zu, %.0f, %.0f, %f\n",
+		   "fwd-conv",
+		   wei_h,
+		   wei_w,
+		   in_n,
+		   in_c,
+		   out_h,
+		   out_w,
+		   wei_h,
+		   wei_w,
+		   out_c,
+		   flopCnt,
+		   readBytes,
+		   outputBytes,
+		   flopCnt / kernel_average_time / 1e6,
+		   (readBytes + outputBytes) / kernel_average_time / 1e6,
+		   kernel_average_time);
+}
+
+void op_convolution_miopen::print_wrw_time(const float kernel_average_time) {
+	std::string algo_name = get_bwd_filter_name();
+	std::cout << "OpDriver Backward Weights Conv. Algorithm: " << algo_name << "." << std::endl;
+
+	printf("GPU Kernel Time Backward Weights Conv. Elapsed: %f ms (average)\n", kernel_average_time);
+	int in_n, in_c, in_h, in_w;
+	int wei_k, wei_c, wei_h, wei_w;
+	int out_n, out_c, out_h, out_w;
+	
+    miopenDataType_t dt;
+    int n_stride, c_stride, h_stride, w_stride;
+
+	CHECK_MIO(miopenGet4dTensorDescriptor((miopenTensorDescriptor_t)input->desc, &dt,
+				&in_n, &in_c, &in_h, &in_w, &n_stride, &c_stride, &h_stride,
+				&w_stride));
+	CHECK_MIO(miopenGet4dTensorDescriptor((miopenTensorDescriptor_t)filter->desc, &dt,
+				&wei_k, &wei_c, &wei_h, &wei_w, &n_stride, &c_stride, &h_stride,
+				&w_stride));
+	CHECK_MIO(miopenGet4dTensorDescriptor((miopenTensorDescriptor_t)output->desc, &dt,
+				&out_n, &out_c, &out_h, &out_w, &n_stride, &c_stride, &h_stride,
+				&w_stride));
+
+	debug_msg("input:(%d,%d,%d,%d), filer:(%d,%d,%d,%d), output:(%d,%d,%d,%d)\n",
+			in_n, in_c, in_h, in_w, wei_k, wei_c, wei_h, wei_w, out_n, out_c, out_h, out_w);
+
+	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w;
+	size_t readBytes = 0;
+	size_t outputBytes = 0;
 
 	printf("stats: name, n, c, ho, wo, x, y, k, flopCnt, bytesRead, bytesWritten, GFLOPs, "
 			   "GB/s, timeMs\n");

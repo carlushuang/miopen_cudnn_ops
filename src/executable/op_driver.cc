@@ -816,14 +816,19 @@ static int conv_driver(int argc, char ** argv){
 	cpu_dev->tensor_destroy(t_in_c);
 	cpu_dev->tensor_destroy(t_out_c);
 	cpu_dev->tensor_destroy(t_filter_c);
-	if(!is_fwd){
+
+	if(is_bwd){
 		gpu_dev->tensor_destroy(t_in_grad);
 		gpu_dev->tensor_destroy(t_out_grad);
-		gpu_dev->tensor_destroy(t_filter_grad);
 		cpu_dev->tensor_destroy(t_in_grad_c);
 		cpu_dev->tensor_destroy(t_out_grad_c);
+	}
+
+	if(is_wrw){
+		gpu_dev->tensor_destroy(t_filter_grad);
 		cpu_dev->tensor_destroy(t_filter_grad_c);
 	}
+
 	return 0;
 }
 
