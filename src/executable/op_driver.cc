@@ -50,7 +50,7 @@ static device_base * determin_device(){
 }
 void inline b2s(size_t bytes, char * str){
 	if(bytes<1024){
-		sprintf(str, "%lluB", bytes);
+		sprintf(str, "%luB", bytes);
 	}else if(bytes<(1024*1024)){
 		double b= (double)bytes/1024.0;
 		sprintf(str, "%.2fKB", b);
@@ -484,7 +484,7 @@ static int conv_driver(int argc, char ** argv){
 	std::string in_b = parser.get_arg("a");
 	std::string in_dy = parser.get_arg("D");
 
-	int is_save_out = parser.get_arg_int("o");
+	int save_out = parser.get_arg_int("o");
 
 	assert( (input_c%groups)==0 && "group conv must evenly devide input channel!");
 	//    assert( (filters%groups)==0 && "group conv must evenly devide filter number!");
@@ -501,12 +501,9 @@ static int conv_driver(int argc, char ** argv){
 	convolution_desc_t *conv_desc = gpu_dev->convolution_desc_create(conv_mode, TENSOR_DT_FLOAT,
 			_ksize, _stride, _pad, _dilation, 2,
 			groups, output_c, input_c, input_h, input_w);
-
-#if 1
 	convolution_desc_t * conv_desc_c = cpu_dev->convolution_desc_create(conv_mode, TENSOR_DT_FLOAT,
 			_ksize, _stride, _pad, _dilation, 2,
 			groups, output_c, input_c, input_h, input_w);
-#endif
 
 	tensor_t *t_in, *t_out, *t_filter, *t_in_c, *t_out_c, *t_filter_c;
 	tensor_t *t_in_grad, *t_out_grad, *t_filter_grad;
@@ -518,6 +515,7 @@ static int conv_driver(int argc, char ** argv){
 
 	// create gpu tensors
 	op_conv = operator_create(gpu_dev, OP_CONV, conv_desc);
+	op_conv_c = operator_create(cpu_dev, OP_CONV, conv_desc_c);
 
 	t_in = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
 	op_conv->input = t_in;
@@ -527,39 +525,32 @@ static int conv_driver(int argc, char ** argv){
 	t_out = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
 	op_conv->output = t_out;
 
-	if(is_bwd){
-		t_in_grad = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
-		t_out_grad = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
-		op_conv->input_grad = t_in_grad;
-		op_conv->output_grad = t_out_grad;
-	}
-
-	if (is_wrw) {
-		t_filter_grad = gpu_dev->tensor_create(t_filter_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
-		op_conv->filter_grad = t_filter_grad;
-	}
-
-	// create cpu tensors
-	//	if (is_fwd) {
-	op_conv_c = operator_create(cpu_dev, OP_CONV, conv_desc_c);
 	t_in_c = cpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
 	t_out_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
 	t_filter_c = cpu_dev->tensor_create(t_filter_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
 	op_conv_c->filter = t_filter_c;
 	op_conv_c->input = t_in_c;
 	op_conv_c->output = t_out_c;
-	//	}
 
-#if 1
-	if (is_bwd) {
+	if(is_bwd){
+		t_in_grad = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+		t_out_grad = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+		op_conv->input_grad = t_in_grad;
+		op_conv->output_grad = t_out_grad;
+
 		t_in_grad_c = cpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
 		t_out_grad_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
-		t_filter_grad_c = cpu_dev->tensor_create(t_filter_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
 		op_conv_c->input_grad = t_in_grad_c;
 		op_conv_c->output_grad = t_out_grad_c;
+	}
+
+	if (is_wrw) {
+		t_filter_grad = gpu_dev->tensor_create(t_filter_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+		op_conv->filter_grad = t_filter_grad;
+
+		t_filter_grad_c = cpu_dev->tensor_create(t_filter_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
 		op_conv_c->filter_grad = t_filter_grad_c;
 	}
-#endif
 
 	op_conv->tune_op();
 	op_conv->alloc_mem();
@@ -626,7 +617,7 @@ static int conv_driver(int argc, char ** argv){
 			delete[] fwd_out_gpu;
 		}
 
-		if (is_save_out) {
+		if (save_out) {
 			float * fwd_out = new float[t_out->elem()];
 			gpu_dev->tensor_copy(fwd_out, t_out, t_out->bytes(), TENSOR_COPY_D2H);
 			writeToTxt("conv_fwd_out.txt", fwd_out, t_out->elem());
@@ -666,7 +657,7 @@ static int conv_driver(int argc, char ** argv){
 			delete[] in_grad_cpu;
 		}
 
-		if (is_save_out) {
+		if (save_out) {
 			float * bwd_out = new float[t_in_grad->elem()];
 			gpu_dev->tensor_copy(bwd_out, t_in_grad, t_in_grad->bytes(), TENSOR_COPY_D2H);
 			writeToTxt("conv_bwd_out.txt", bwd_out, t_in_grad->elem());
@@ -706,7 +697,7 @@ static int conv_driver(int argc, char ** argv){
 			delete[] filter_grad_cpu;
 		}
 
-		if (is_save_out) {
+		if (save_out) {
 			float * wrw_out = new float[t_filter_grad->elem()];
 			gpu_dev->tensor_copy(wrw_out, t_filter_grad, t_filter_grad->bytes(), TENSOR_COPY_D2H);
 			writeToTxt("conv_wrw_out.txt", wrw_out, t_filter_grad->elem());
@@ -724,83 +715,10 @@ static int conv_driver(int argc, char ** argv){
 		op_conv->forward();
 	}
 	dt->stop();
-
-	if (time_enabled) {
-		std::string fwd_algo_name = dynamic_cast<op_convolution*>(op_conv)->get_fwd_algo_name();
-		std::cout << "OpDriver Forward Conv. Algorithm: " << fwd_algo_name << "." << std::endl;
-		op_conv->print_fwd_time(dt->elapsed() / num_iterations);
-	}
-
-	if (is_save_out) {
-		float * dev_out = new float[t_out->elem()];
-		gpu_dev->tensor_copy(dev_out, t_out, t_out->bytes(), TENSOR_COPY_D2H);
-		dumpBufferToTxt("conv_out.txt", dev_out, t_out->elem());
-	}
 #endif
 
-#if 0
-	if(!is_fwd){
-		dt->reset();
-		for(int l=0;l<LOOP_WARMUP;l++){
-			op_conv->backward_data();
-		}
-		dt->start();
-		for(int l=0;l<LOOP_ITR;l++){
-			op_conv->backward_data();
-		}
-		dt->stop();
-		cost_per_loop = dt->elapsed()/LOOP_ITR;
-#ifdef EF_PRT
-#else
-		std::cout<<"convolution bwd_data gpu cost "<<cost_per_loop<<"ms average"<<std::endl;
-#endif
-
-		dt->reset();
-		for(int l=0;l<LOOP_WARMUP;l++){
-			op_conv->backward_filter();
-		}
-		dt->start();
-		for(int l=0;l<LOOP_ITR;l++){
-			op_conv->backward_filter();
-		}
-		dt->stop();
-		cost_per_loop = dt->elapsed()/LOOP_ITR;
-#ifdef EF_PRT
-		std::cout<<"convolution bwd_filter gpu cost "<<cost_per_loop<<"ms average"<<std::endl;
-#endif
-	}
-#endif
 	gpu_dev->device_timer_destroy(dt);
-	//#define CPU_VALIDATE
-	//validation
-#ifdef CPU_VALIDATE
-	op_conv_c->forward();
-	if(!is_fwd)
-		op_conv_c->backward();
 
-	// compare
-	float * dev_out = new float[t_out->elem()];
-	gpu_dev->tensor_copy(dev_out, t_out, t_out->bytes(), TENSOR_COPY_D2H);
-	int error_cnt = util_compare_data(dev_out, t_out_c->mem, t_out_c->elem(), TENSOR_DT_FLOAT, 0.001);
-	if(error_cnt){
-		std::cout<<"convolution fwd compare fail"<<std::endl;
-	}else{
-		std::cout<<"convolution fwd result verified"<<std::endl;
-	}
-	delete [] dev_out;
-	if(!is_fwd){
-		float * dev_in_grad = new float[t_in_grad->elem()];
-		gpu_dev->tensor_copy(dev_in_grad, t_in_grad, t_in_grad->bytes(), TENSOR_COPY_D2H);
-
-		//int error_cnt_grad = util_compare_data(dev_in_grad, t_in_grad_c->mem, t_in_grad_c->elem(), TENSOR_DT_FLOAT, 0.001);
-		//if(error_cnt_grad){
-		//    std::cout<<"convolution bwd compare fail"<<std::endl;
-		//}else{
-		//    std::cout<<"convolution bwd result verified"<<std::endl;
-		//}
-		delete [] dev_in_grad;
-	}
-#endif
 	// clean
 	operator_destroy(op_conv);
 	gpu_dev->convolution_desc_destroy(conv_desc);
