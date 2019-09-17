@@ -357,7 +357,7 @@ static int conv_driver(int argc, char ** argv){
 			"spatial_dim", '_', "2", "convolution spatial dimension (Default-2)", "int");
 	parser.insert_arg("forw",
 			'F',
-			"1",
+			"0",
 			"Flag enables fwd, bwd, wrw convolutions"
 			"\n0 fwd+bwd+wrw (default)"
 			"\n1 fwd only"

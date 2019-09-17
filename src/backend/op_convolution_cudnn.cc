@@ -79,7 +79,7 @@ void op_convolution_cudnn::tune_op(){
 				*/
 
         // find fwd algo
-#if 1
+#if 0
         cudnnConvolutionFwdAlgoPerf_t perfs[8];
         int returned_algos;
 
@@ -364,7 +364,7 @@ void op_convolution_cudnn::print_bwd_time(const float kernel_average_time) {
 	printf("stats: name, n, c, ho, wo, x, y, k, flopCnt, bytesRead, bytesWritten, GFLOPs, "
 			   "GB/s, timeMs\n");
 	printf("stats: %s%dx%d, %u, %u, %u, %u, %u, %u, %u, %zu, %zu, %zu, %.0f, %.0f, %f\n",
-		   "fwd-conv",
+		   "bwdd-conv",
 		   wei_h,
 		   wei_w,
 		   in_n,
@@ -414,7 +414,7 @@ void op_convolution_cudnn::print_wrw_time(const float kernel_average_time) {
 	printf("stats: name, n, c, ho, wo, x, y, k, flopCnt, bytesRead, bytesWritten, GFLOPs, "
 			   "GB/s, timeMs\n");
 	printf("stats: %s%dx%d, %u, %u, %u, %u, %u, %u, %u, %zu, %zu, %zu, %.0f, %.0f, %f\n",
-		   "fwd-conv",
+		   "bwdw-conv",
 		   wei_h,
 		   wei_w,
 		   in_n,

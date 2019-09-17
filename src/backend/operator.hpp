@@ -143,7 +143,6 @@ public:
     cudnnConvolutionFwdAlgo_t fwd_algo;
     cudnnConvolutionBwdFilterAlgo_t bwd_filter_algo;
     cudnnConvolutionBwdDataAlgo_t bwd_data_algo;
-
 };
 #endif
 
