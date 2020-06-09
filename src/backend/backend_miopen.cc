@@ -89,6 +89,16 @@ device_hip::device_hip(int dev_id){
 device_hip::~device_hip(){
     miopenDestroy(this->handle);
 }
+
+double device_hip::get_theoretical_gflops(tensor_data_type data_type, int is_tensor_op)
+{
+    // TODO: hard code to gfx906, 60 CU
+    if(data_type == TENSOR_DT_FLOAT)
+    {
+        return 13.41 * 1000; 
+    }
+    return 0;
+}
 device_timer_t * device_hip::device_timer_create(){
     device_timer_hip * dt = new device_timer_hip;
     dt->queue = this->queue;

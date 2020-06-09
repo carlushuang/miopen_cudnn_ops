@@ -6,6 +6,8 @@
 #include <assert.h>
 #include <stddef.h>
 
+#define OP_LOG_TO_FILE
+
 enum log_level{
     LOG_INFO = 0,
     LOG_WARNING,
@@ -174,6 +176,8 @@ public:
         ws = nullptr;
     }
 
+    virtual double get_theoretical_gflops(tensor_data_type data_type, int is_tensor_op = 0) = 0;
+
     virtual device_timer_t * device_timer_create() = 0;
     virtual void device_timer_destroy(device_timer_t * dt) = 0;
 
@@ -289,6 +293,9 @@ public:
 
     device_hip(int dev_id);
     ~device_hip();
+
+    virtual double get_theoretical_gflops(tensor_data_type data_type, int is_tensor_op = 0);
+
     virtual device_timer_t * device_timer_create();
     virtual void device_timer_destroy(device_timer_t * dt);
 
@@ -414,6 +421,8 @@ public:
     virtual device_timer_t * device_timer_create();
     virtual void device_timer_destroy(device_timer_t * dt);
 
+    virtual double get_theoretical_gflops(tensor_data_type data_type, int is_tensor_op = 0);
+
     virtual tensor_t * tensor_create(size_t * dims, size_t n_dim, 
                     tensor_data_type data_type, tensor_layout layout);
 	/*
@@ -447,6 +456,7 @@ class device_c : public device_base{
 public:
     device_c();
     ~device_c();
+    virtual double get_theoretical_gflops(tensor_data_type data_type, int is_tensor_op = 0) {return 0;}
     virtual device_timer_t * device_timer_create(){return nullptr;}
     virtual void device_timer_destroy(device_timer_t * dt){}
     virtual tensor_t * tensor_create(size_t * dims, size_t n_dim, 
@@ -543,6 +553,29 @@ static inline int util_compare_data(void * m1, void * m2,
     }
 
     return error_cnt;
+}
+
+static inline void util_b2s(size_t bytes, char * str){
+	if(bytes<1024){
+		sprintf(str, "%luB", bytes);
+	}else if(bytes<(1024*1024)){
+		double b= (double)bytes/1024.0;
+		sprintf(str, "%.2fKB", b);
+	}else if(bytes<(1024*1024*1024)){
+		double b= (double)bytes/(1024.0*1024);
+		sprintf(str, "%.2fMB", b);
+	}else{
+		double b= (double)bytes/(1024.0*1024*1024);
+		sprintf(str, "%.2fGB", b);
+	}
+}
+
+#include <string>
+static inline std::string util_b2string(size_t bytes)
+{
+    char s[64];
+    util_b2s(bytes, s);
+    return std::string(s);
 }
 
 #endif

@@ -39,6 +39,16 @@ device_cuda::device_cuda(int dev_id){
 device_cuda::~device_cuda(){
     cudnnDestroy(this->handle);
 }
+
+double device_cuda::get_theoretical_gflops(tensor_data_type data_type, int is_tensor_op)
+{
+    // TODO: hard coded to V100 PCIE
+    if(data_type == TENSOR_DT_FLOAT){
+        return 14*1000;
+    }
+    return 0;
+}
+
 class device_timer_cuda: public device_timer_t{
 public:
     device_timer_cuda(){}
