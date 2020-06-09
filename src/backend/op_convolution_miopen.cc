@@ -18,6 +18,8 @@ static const char * to_miopen_fwd_algo_name(miopenConvFwdAlgorithm_t fwd_algo){
         ALGO_CASE_STR(miopenConvolutionFwdAlgoDirect);
         ALGO_CASE_STR(miopenConvolutionFwdAlgoFFT);
         ALGO_CASE_STR(miopenConvolutionFwdAlgoWinograd);
+        ALGO_CASE_STR(miopenConvolutionFwdAlgoImplicitGEMM);
+        ALGO_CASE_STR(miopenConvolutionFwdAlgoStaticCompiledGEMM);
         default:
             return "N/A";
         break;
@@ -28,6 +30,7 @@ static const char * to_miopen_bwd_weights_algo_name(miopenConvBwdWeightsAlgorith
         ALGO_CASE_STR(miopenConvolutionBwdWeightsAlgoGEMM);
         ALGO_CASE_STR(miopenConvolutionBwdWeightsAlgoDirect);
         ALGO_CASE_STR(miopenConvolutionBwdWeightsAlgoWinograd);
+        ALGO_CASE_STR(miopenConvolutionBwdWeightsAlgoImplicitGEMM);
         default:
             return "N/A";
         break;
@@ -41,6 +44,7 @@ static const char * to_miopen_bwd_data_algo_name(miopenConvBwdDataAlgorithm_t bw
         ALGO_CASE_STR(miopenConvolutionBwdDataAlgoFFT);
         ALGO_CASE_STR(miopenConvolutionBwdDataAlgoWinograd);
         ALGO_CASE_STR(miopenTransposeBwdDataAlgoGEMM);
+        ALGO_CASE_STR(miopenConvolutionBwdDataAlgoImplicitGEMM);
         default:
             return "N/A";
         break;
