@@ -46,7 +46,7 @@ if(WITH_MIOPEN)
     set(CMAKE_CXX_COMPILER ${HIP_PATH}/bin/hipcc)
     add_definitions(-DWITH_MIOPEN)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${HIP_PATH}/include -I${ROCM_PATH}/include ")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -amdgpu-target=gfx900 -amdgpu-target=gfx906")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -amdgpu-target=gfx900 -amdgpu-target=gfx906 -amdgpu-target=gfx908")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wall ")
 
     set(LD_FLAGS "-L${ROCM_PATH}/lib -L${ROCM_PATH}/opencl/lib/x86_64 -lMIOpen ")
