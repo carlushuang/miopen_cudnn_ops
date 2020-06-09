@@ -46,6 +46,28 @@ static const char * to_miopen_bwd_data_algo_name(miopenConvBwdDataAlgorithm_t bw
         break;
     }
 }
+
+#ifdef OP_LOG_TO_FILE
+static inline FILE * get_fp(){
+    static int inited = 0;
+    FILE * fp;
+    fp = fopen ("conv_log.csv","a");
+    if(fp && !inited){
+        inited = 1;
+        FILE * fp_2 = fopen("conv_log_banner.csv","w");
+        if(fp_2){
+            fprintf(fp_2, "n,g,c,h,w,k,y,x,ho,wo,py,px,sy,sx,dy,dx,gflop");
+            fprintf(fp_2, ",algo(fwd),workspace,time(ms),gflops,efficiency(%)");
+            fprintf(fp_2, ",algo(bwd),workspace,time(ms),gflops,efficiency(%)");
+            fprintf(fp_2, ",algo(wrw),workspace,time(ms),gflops,efficiency(%)");
+            fprintf(fp_2, "\n");
+            fclose(fp_2);
+        }
+    }
+    return fp;
+}
+#endif
+
 #define MIOPEN_EXHAUSTIVE_SEARCH false
 void op_convolution_miopen::tune_op(){
     // API like miopenFindConvolutionForwardAlgorithm() need pre-alloced device memory
@@ -207,13 +229,12 @@ void op_convolution_miopen::backward_data(){
     assert(filter && input_grad && output_grad);
     device_hip * dev_hip = (device_hip *)dev;
     assert(backward_data_tuned);
-	assert(bwd_data_workspace_mem);
+	// assert(bwd_data_workspace_mem);
 
-	/*
     bwd_data_workspace_mem = bwd_data_workspace_size?
                                 dev->ws->get(bwd_data_workspace_size, input->data_type):
                                 nullptr;
-								*/
+
     const float alpha = 1.f;
     const float beta = 0.f;
     CHECK_MIO(miopenConvolutionBackwardData(dev_hip->handle, &alpha,
@@ -309,6 +330,25 @@ void op_convolution_miopen::print_fwd_time(const float kernel_average_time) {
 		   flopCnt / kernel_average_time / 1e6,
 		   (readBytes + outputBytes) / kernel_average_time / 1e6,
 		   kernel_average_time);
+#ifdef OP_LOG_TO_FILE
+    {
+        FILE * fp = get_fp();
+        if(fp){
+                        // n,g,c,h,w,k,y,x,ho,wo,py,px,sy,sx,dy,dx,gflop
+            fprintf(fp, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%.2f",
+                in_n, conv_desc->groups, in_c, in_h, in_w, wei_k, wei_h, wei_w, out_h, out_w,
+                conv_desc->padding[0],conv_desc->padding[1],
+                conv_desc->stride[0], conv_desc->stride[1], conv_desc->dilation[0], conv_desc->dilation[1],
+                (double)flopCnt/1e9);
+                    // ,algo(fwd),workspace,time(ms),gflops,efficiency(%)");
+            fprintf(fp, ",%s,%s,%.2f,%.2f,%.2f%%",
+                fwd_algo_name.c_str(), util_b2string(fwd_workspace_size).c_str(),
+                kernel_average_time, flopCnt / kernel_average_time / 1e6,
+                flopCnt / kernel_average_time / 1e4 / dev->get_theoretical_gflops(input->data_type));
+            fclose(fp);
+        }
+    }
+#endif
 }
 
 void op_convolution_miopen::print_bwd_time(const float kernel_average_time) {
@@ -361,6 +401,19 @@ void op_convolution_miopen::print_bwd_time(const float kernel_average_time) {
 		   flopCnt / kernel_average_time / 1e6,
 		   (readBytes + outputBytes) / kernel_average_time / 1e6,
 		   kernel_average_time);
+#ifdef OP_LOG_TO_FILE
+    {
+        FILE * fp = get_fp();
+        if(fp){
+                    // ,algo(fwd),workspace,time(ms),gflops,efficiency(%)");
+            fprintf(fp, ",%s,%s,%.2f,%.2f,%.2f%%",
+                algo_name.c_str(), util_b2string(bwd_data_workspace_size).c_str(),
+                kernel_average_time, flopCnt / kernel_average_time / 1e6,
+                flopCnt / kernel_average_time / 1e4 / dev->get_theoretical_gflops(input->data_type));
+            fclose(fp);
+        }
+    }
+#endif
 }
 
 void op_convolution_miopen::print_wrw_time(const float kernel_average_time) {
@@ -411,4 +464,18 @@ void op_convolution_miopen::print_wrw_time(const float kernel_average_time) {
 		   flopCnt / kernel_average_time / 1e6,
 		   (readBytes + outputBytes) / kernel_average_time / 1e6,
 		   kernel_average_time);
+#ifdef OP_LOG_TO_FILE
+    {
+        FILE * fp = get_fp();
+        if(fp){
+                    // ,algo(fwd),workspace,time(ms),gflops,efficiency(%)");
+            fprintf(fp, ",%s,%s,%.2f,%.2f,%.2f%%",
+                algo_name.c_str(), util_b2string(bwd_filter_workspace_size).c_str(),
+                kernel_average_time, flopCnt / kernel_average_time / 1e6,
+                flopCnt / kernel_average_time / 1e4 / dev->get_theoretical_gflops(input->data_type));
+            fprintf(fp,"\n");
+            fclose(fp);
+        }
+    }
+#endif
 }
