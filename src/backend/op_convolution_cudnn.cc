@@ -90,7 +90,7 @@ void op_convolution_cudnn::tune_op(){
                     to_cudnn_layout(filter->layout), 
                     conv_desc->k,
                     //https://docs.nvidia.com/deeplearning/sdk/cudnn-developer-guide/index.html#grouped-convolutions
-                    conv_desc->input_c/conv_desc->groups, 
+                    conv_desc->input_c/conv_desc->groups,
                     conv_desc->kernel[0], conv_desc->kernel[1]));
 
         // TODO: set CUDNN_TENSOR_OP_MATH can use tensor core if available, here disable it
@@ -324,7 +324,7 @@ void op_convolution_cudnn::print_fwd_time(const float kernel_average_time) {
 	debug_msg("input:(%d,%d,%d,%d), filer:(%d,%d,%d,%d), output:(%d,%d,%d,%d)\n",
 			in_n, in_c, in_h, in_w, wei_k, wei_c, wei_h, wei_w, out_n, out_c, out_h, out_w);
 
-	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w;
+	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w / conv_desc->groups;
 	size_t inBytes = in_n * in_c * in_h * in_w * 4;
 	size_t weiBytes = wei_k * wei_c * wei_h * wei_w * 4;
 	size_t readBytes = inBytes + weiBytes;
@@ -395,7 +395,7 @@ void op_convolution_cudnn::print_bwd_time(const float kernel_average_time) {
 	debug_msg("input:(%d,%d,%d,%d), filer:(%d,%d,%d,%d), output:(%d,%d,%d,%d)\n",
 			in_n, in_c, in_h, in_w, wei_k, wei_c, wei_h, wei_w, out_n, out_c, out_h, out_w);
 
-	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w;
+	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w / conv_desc->groups;
 	size_t inBytes = in_n * in_c * in_h * in_w * 4;
 	size_t weiBytes = wei_k * wei_c * wei_h * wei_w * 4;
 	size_t readBytes = inBytes + weiBytes;
@@ -460,7 +460,7 @@ void op_convolution_cudnn::print_wrw_time(const float kernel_average_time) {
 	debug_msg("input:(%d,%d,%d,%d), filer:(%d,%d,%d,%d), output:(%d,%d,%d,%d)\n",
 			in_n, in_c, in_h, in_w, wei_k, wei_c, wei_h, wei_w, out_n, out_c, out_h, out_w);
 
-	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w;
+	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w / conv_desc->groups;
 	size_t readBytes = 0;
 	size_t outputBytes = 0;
 

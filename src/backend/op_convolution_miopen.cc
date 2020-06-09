@@ -284,7 +284,7 @@ void op_convolution_miopen::print_fwd_time(const float kernel_average_time) {
 	debug_msg("input:(%d,%d,%d,%d), filer:(%d,%d,%d,%d), output:(%d,%d,%d,%d)\n",
 			in_n, in_c, in_h, in_w, wei_k, wei_c, wei_h, wei_w, out_n, out_c, out_h, out_w);
 
-	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w;
+	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w / conv_desc->groups;
 	size_t inBytes = in_n * in_c * in_h * in_w * 4;
 	size_t weiBytes = wei_k * wei_c * wei_h * wei_w * 4;
 	size_t readBytes = inBytes + weiBytes;
@@ -336,7 +336,7 @@ void op_convolution_miopen::print_bwd_time(const float kernel_average_time) {
 	debug_msg("input:(%d,%d,%d,%d), filer:(%d,%d,%d,%d), output:(%d,%d,%d,%d)\n",
 			in_n, in_c, in_h, in_w, wei_k, wei_c, wei_h, wei_w, out_n, out_c, out_h, out_w);
 
-	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w;
+	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w / conv_desc->groups;
 	size_t inBytes = in_n * in_c * in_h * in_w * 4;
 	size_t weiBytes = wei_k * wei_c * wei_h * wei_w * 4;
 	size_t readBytes = inBytes + weiBytes;
@@ -388,7 +388,7 @@ void op_convolution_miopen::print_wrw_time(const float kernel_average_time) {
 	debug_msg("input:(%d,%d,%d,%d), filer:(%d,%d,%d,%d), output:(%d,%d,%d,%d)\n",
 			in_n, in_c, in_h, in_w, wei_k, wei_c, wei_h, wei_w, out_n, out_c, out_h, out_w);
 
-	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w;
+	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w / conv_desc->groups;
 	size_t readBytes = 0;
 	size_t outputBytes = 0;
 
