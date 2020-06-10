@@ -5,8 +5,10 @@
 #include <unistd.h>
 #include <assert.h>
 #include <stddef.h>
+#include <string>
 
 #define OP_LOG_TO_FILE
+// #define OP_CUDNN_FP16_NO_TENSORCORE
 
 enum log_level{
     LOG_INFO = 0,
@@ -46,6 +48,19 @@ static inline int data_type_unit(tensor_data_type dt){
         return 2;
     return 0;
 }
+
+static inline std::string data_type_string(tensor_data_type dt){
+    if(dt == TENSOR_DT_FLOAT)
+        return std::string("fp32");
+    if(dt == TENSOR_DT_HALF)
+#if defined(OP_CUDNN_FP16_NO_TENSORCORE) && defined(WITH_CUDNN)
+        return std::string("fp16-notensorcore");
+#else
+        return std::string("fp16");
+#endif
+    return std::string("n/a");
+}
+
 enum tensor_layout{
     TENSOR_LAYOUT_1D = 0,
     TENSOR_LAYOUT_NCHW,
@@ -273,7 +288,7 @@ static inline miopenActivationMode_t to_miopen_activation_mode(activation_mode m
 static inline miopenConvolutionMode_t to_miopen_convolution_mode(convolution_mode mode){
     switch(mode){
         case CONVOLUTION_CONV:
-            LOG_E()<<"miopen only support cross correlation mode for conv"<<std::endl;
+            // LOG_E()<<"miopen only support cross correlation mode for conv"<<std::endl;
             return miopenConvolution;
         break;
         case CONVOLUTION_CROSS_CORRELATION:
@@ -570,7 +585,6 @@ static inline void util_b2s(size_t bytes, char * str){
 	}
 }
 
-#include <string>
 static inline std::string util_b2string(size_t bytes)
 {
     char s[64];

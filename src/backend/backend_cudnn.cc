@@ -46,6 +46,14 @@ double device_cuda::get_theoretical_gflops(tensor_data_type data_type, int is_te
     if(data_type == TENSOR_DT_FLOAT){
         return 14*1000;
     }
+    if(data_type == TENSOR_DT_HALF){
+#ifdef OP_CUDNN_FP16_NO_TENSORCORE
+        return 28*1000;
+#else
+        // This is tensorcore flops
+        return 112*1000;
+#endif
+    }
     return 0;
 }
 
@@ -276,16 +284,16 @@ convolution_desc_t * device_cuda::convolution_desc_create(convolution_mode mode,
             padding, stride, dilation, to_cudnn_convolution_mode(mode), to_cudnn_data_type(dt)));
 #else
 	assert(n_dims == 2);
-	
-#if 0
     CHECK_CUDNN(cudnnSetConvolution2dDescriptor(desc, padding[0], padding[1],
 				stride[0], stride[1], dilation[0], dilation[1],
 				to_cudnn_convolution_mode(mode), to_cudnn_data_type(dt)));
 #endif
 
-    CHECK_CUDNN(cudnnSetConvolution2dDescriptor(desc, padding[0], padding[1],
-				stride[0], stride[1], dilation[0], dilation[1],
-				CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+
+#ifndef OP_CUDNN_FP16_NO_TENSORCORE
+    if(dt == TENSOR_DT_HALF){
+        CHECK_CUDNN(cudnnSetConvolutionMathType(desc, CUDNN_TENSOR_OP_MATH));
+    }
 #endif
 
     if(groups != 1)

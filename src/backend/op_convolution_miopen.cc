@@ -60,10 +60,10 @@ static inline FILE * get_fp(){
         inited = 1;
         FILE * fp_2 = fopen("conv_log_banner.csv","w");
         if(fp_2){
-            fprintf(fp_2, "n,g,c,h,w,k,y,x,ho,wo,py,px,sy,sx,dy,dx,gflop");
-            fprintf(fp_2, ",algo(fwd),workspace,time(ms),gflops,efficiency(%)");
-            fprintf(fp_2, ",algo(bwd),workspace,time(ms),gflops,efficiency(%)");
-            fprintf(fp_2, ",algo(wrw),workspace,time(ms),gflops,efficiency(%)");
+            fprintf(fp_2, "n,g,c,h,w,k,y,x,ho,wo,py,px,sy,sx,dy,dx,gflop,dtype");
+            fprintf(fp_2, ",algo(fwd),workspace,time(ms),gflops,efficiency(%%)");
+            fprintf(fp_2, ",algo(bwd),workspace,time(ms),gflops,efficiency(%%)");
+            fprintf(fp_2, ",algo(wrw),workspace,time(ms),gflops,efficiency(%%)");
             fprintf(fp_2, "\n");
             fclose(fp_2);
         }
@@ -310,10 +310,10 @@ void op_convolution_miopen::print_fwd_time(const float kernel_average_time) {
 			in_n, in_c, in_h, in_w, wei_k, wei_c, wei_h, wei_w, out_n, out_c, out_h, out_w);
 
 	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w / conv_desc->groups;
-	size_t inBytes = in_n * in_c * in_h * in_w * 4;
-	size_t weiBytes = wei_k * wei_c * wei_h * wei_w * 4;
+	size_t inBytes = in_n * in_c * in_h * in_w * data_type_unit(input->data_type);
+	size_t weiBytes = wei_k * wei_c * wei_h * wei_w * data_type_unit(input->data_type);
 	size_t readBytes = inBytes + weiBytes;
-	size_t outputBytes = out_n * out_c * out_h * out_w * 4;
+	size_t outputBytes = out_n * out_c * out_h * out_w * data_type_unit(input->data_type);
 
 	printf("stats: name, n, c, ho, wo, x, y, k, flopCnt, bytesRead, bytesWritten, GFLOPs, "
 			   "GB/s, timeMs\n");
@@ -338,12 +338,12 @@ void op_convolution_miopen::print_fwd_time(const float kernel_average_time) {
     {
         FILE * fp = get_fp();
         if(fp){
-                        // n,g,c,h,w,k,y,x,ho,wo,py,px,sy,sx,dy,dx,gflop
-            fprintf(fp, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%.2f",
+                        // n,g,c,h,w,k,y,x,ho,wo,py,px,sy,sx,dy,dx,gflop,dtype
+            fprintf(fp, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%.2f,%s",
                 in_n, conv_desc->groups, in_c, in_h, in_w, wei_k, wei_h, wei_w, out_h, out_w,
                 conv_desc->padding[0],conv_desc->padding[1],
                 conv_desc->stride[0], conv_desc->stride[1], conv_desc->dilation[0], conv_desc->dilation[1],
-                (double)flopCnt/1e9);
+                (double)flopCnt/1e9,data_type_string(input->data_type).c_str());
                     // ,algo(fwd),workspace,time(ms),gflops,efficiency(%)");
             fprintf(fp, ",%s,%s,%.2f,%.2f,%.2f%%",
                 fwd_algo_name.c_str(), util_b2string(fwd_workspace_size).c_str(),
@@ -381,10 +381,10 @@ void op_convolution_miopen::print_bwd_time(const float kernel_average_time) {
 			in_n, in_c, in_h, in_w, wei_k, wei_c, wei_h, wei_w, out_n, out_c, out_h, out_w);
 
 	size_t flopCnt = 2L * in_n * in_c * wei_h * wei_w * out_c * out_h * out_w / conv_desc->groups;
-	size_t inBytes = in_n * in_c * in_h * in_w * 4;
-	size_t weiBytes = wei_k * wei_c * wei_h * wei_w * 4;
+	size_t inBytes = in_n * in_c * in_h * in_w * data_type_unit(input->data_type);
+	size_t weiBytes = wei_k * wei_c * wei_h * wei_w * data_type_unit(input->data_type);
 	size_t readBytes = inBytes + weiBytes;
-	size_t outputBytes = out_n * out_c * out_h * out_w * 4;
+	size_t outputBytes = out_n * out_c * out_h * out_w * data_type_unit(input->data_type);
 
 	printf("stats: name, n, c, ho, wo, x, y, k, flopCnt, bytesRead, bytesWritten, GFLOPs, "
 			   "GB/s, timeMs\n");

@@ -23,7 +23,7 @@ list(APPEND backend_src
             src/backend/op_convolution.cc )
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 ")
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CMAKE_CURRENT_LIST_DIR}/src/backend -I${CMAKE_CURRENT_LIST_DIR}/test")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CMAKE_CURRENT_LIST_DIR}/src/backend ")
 
 macro(add_prefix var prefix)
     # var should be a string with space seperated items

@@ -12,20 +12,35 @@
 #include <fstream>
 
 #include <unistd.h>
-
+#include "half.hpp"
 #include "naive_conv.h"
 
-typedef struct{
-    unsigned short data;
-}_fp16_t;
-
-typedef struct{
+typedef struct {
     unsigned short data;
 }_bf16_t;
 
 using fp32_t = float;
-using fp16_t = _fp16_t;
+using fp16_t = half_float::half;
 using bf16_t = _bf16_t;
+
+static int valid_vector_rms(float *lhs, float *rhs, size_t num, float *rms_error, float threshold=1e-6){
+    size_t i;
+    double d=0;
+    double sx=0;
+    for(i=0;i<num;i++){
+        double la = (double)lhs[i];
+        double lb = (double)rhs[i];
+        double delta = la-lb;
+        sx+=la*la;
+        d+=delta*delta;
+    }
+    double rms = sqrt(d/sx);
+	if(rms_error)
+		*rms_error = rms;
+    // printf("(%.12f)",rms);
+    return rms < threshold? 1:0;
+    //return 0;
+}
 
 #define EF_PRT
 
@@ -75,13 +90,31 @@ void inline b2s(size_t bytes, char * str){
     }
 }
 
-static void rand_float(float * vec, int len){
+template<typename dtype>
+void rand_float(dtype * vec, int len){
+	(void)vec;
+	(void)len;
+}
+
+template<>
+void rand_float<float>(float * vec, int len){
     static std::random_device rd;
     static std::mt19937 mt(rd());
     static std::uniform_real_distribution<float> dist(-1.f, 1.f);
 
     for(int i=0;i<len;i++){
         vec[i] = dist(mt);
+    }
+}
+
+template<>
+void rand_float<fp16_t>(fp16_t * vec, int len){
+    static std::random_device rd;
+    static std::mt19937 mt(rd());
+    static std::uniform_real_distribution<float> dist(-1.f, 1.f);
+
+    for(int i=0;i<len;i++){
+        vec[i] = half_float::half_cast<fp16_t>(dist(mt));
     }
 }
 
@@ -502,6 +535,9 @@ static int conv_driver(int argc, char ** argv){
     int num_warmup = LOOP_WARMUP;
     enum tensor_data_type tensor_dtype = get_tensor_type_t<dtype>::get();
 
+	// TODO: currently do verify at fp32 only
+	is_verify &= tensor_dtype == TENSOR_DT_FLOAT ? 1 : 0;
+
     debug_msg("Conv2d(input=(%lu,%lu,%lu,%lu), output_channels=(%lu), kernel_size=(%d,%d), "
             "stride=(%d,%d), padding=(%d,%d), bias=%s\n\tgroups=(%d), "
             "dilation=(%d,%d))\n",
@@ -523,6 +559,9 @@ static int conv_driver(int argc, char ** argv){
     if(cmode=="conv") conv_mode = CONVOLUTION_CONV;
     else if (cmode == "cross_correlation") conv_mode = CONVOLUTION_CROSS_CORRELATION;
     else {std::cout<<"unsupported conv mode "<<cmode<<std::endl; return -1;}
+
+	// TODO: only consider conv mode, aka cross_correlation in miopen
+	conv_mode = CONVOLUTION_CONV;
 
     int _ksize[2] = {fil_h, fil_w};
     int _pad[2] = {pad_h, pad_w};
@@ -588,27 +627,27 @@ static int conv_driver(int argc, char ** argv){
     op_conv_c->alloc_mem();
 
     if (in_x == "") {
-        rand_float((float*)t_in_c->mem, t_in_c->elem());
+        rand_float((dtype*)t_in_c->mem, t_in_c->elem());
     } else {
-        if (!readFromTxt((float*)t_in_c->mem, t_in_c->elem(), in_x.c_str()))
-            rand_float((float*)t_in_c->mem, t_in_c->elem());
+        if (!readFromTxt((dtype*)t_in_c->mem, t_in_c->elem(), in_x.c_str()))
+            rand_float((dtype*)t_in_c->mem, t_in_c->elem());
     }
     gpu_dev->tensor_copy(t_in, t_in_c->mem, t_in_c->bytes(), TENSOR_COPY_H2D);
 
     if (in_w == "") {
-        rand_float((float*)t_filter_c->mem, t_filter_c->elem());
+        rand_float((dtype*)t_filter_c->mem, t_filter_c->elem());
     } else {
-        if (!readFromTxt((float*)t_filter_c->mem, t_filter_c->elem(), in_w.c_str()))
-            rand_float((float*)t_filter_c->mem, t_filter_c->elem());
+        if (!readFromTxt((dtype*)t_filter_c->mem, t_filter_c->elem(), in_w.c_str()))
+            rand_float((dtype*)t_filter_c->mem, t_filter_c->elem());
     }
     gpu_dev->tensor_copy(t_filter, t_filter_c->mem, t_filter_c->bytes(), TENSOR_COPY_H2D);
 
     if(is_bwd){
         if (in_dy == "") {
-            rand_float((float*)t_out_grad_c->mem, t_out_grad_c->elem());
+            rand_float((dtype*)t_out_grad_c->mem, t_out_grad_c->elem());
         } else {
-            if (!readFromTxt((float*)t_out_grad_c->mem, t_out_grad_c->elem(), in_dy.c_str()))
-                rand_float((float*)t_out_grad_c->mem, t_out_grad_c->elem());
+            if (!readFromTxt((dtype*)t_out_grad_c->mem, t_out_grad_c->elem(), in_dy.c_str()))
+                rand_float((dtype*)t_out_grad_c->mem, t_out_grad_c->elem());
         }
         gpu_dev->tensor_copy(t_out_grad, t_out_grad_c->mem, t_out_grad_c->bytes(), TENSOR_COPY_H2D);
     }
@@ -630,6 +669,7 @@ static int conv_driver(int argc, char ** argv){
             op_conv->print_fwd_time(dt->elapsed() / num_iterations);
 
         if (is_verify) {
+			// TODO: float only!
             float *fwd_out_cpu = new float[t_out_c->elem()];
             float err{0.};
             naive_conv_fwd_nchw((const float *)t_in_c->mem,
@@ -651,7 +691,7 @@ static int conv_driver(int argc, char ** argv){
         }
 
         if (save_out) {
-            float * fwd_out = new float[t_out->elem()];
+            dtype * fwd_out = new dtype[t_out->elem()];
             gpu_dev->tensor_copy(fwd_out, t_out, t_out->bytes(), TENSOR_COPY_D2H);
             writeToTxt("conv_fwd_out.txt", fwd_out, t_out->elem());
             delete[] fwd_out;
@@ -673,6 +713,7 @@ static int conv_driver(int argc, char ** argv){
             op_conv->print_bwd_time(dt->elapsed() / num_iterations);
 
         if (is_verify) {
+			// TODO: float only!
             float *in_grad_cpu = new float[t_in_grad_c->elem()];
             float err{0.};
             naive_conv_bwd_d_nchw(in_grad_cpu, (const float *)t_filter_c->mem,
@@ -694,7 +735,7 @@ static int conv_driver(int argc, char ** argv){
         }
 
         if (save_out) {
-            float * bwd_out = new float[t_in_grad->elem()];
+            dtype * bwd_out = new dtype[t_in_grad->elem()];
             gpu_dev->tensor_copy(bwd_out, t_in_grad, t_in_grad->bytes(), TENSOR_COPY_D2H);
             writeToTxt("conv_bwd_out.txt", bwd_out, t_in_grad->elem());
             delete[] bwd_out;
@@ -716,6 +757,7 @@ static int conv_driver(int argc, char ** argv){
             op_conv->print_wrw_time(dt->elapsed() / num_iterations);
 
         if (is_verify) {
+			// TODO: float only!
             float *filter_grad_cpu = new float[t_filter_grad_c->elem()];
             float err{0.};
             naive_conv_bwd_f_nchw((const float *)t_in_c->mem, filter_grad_cpu,
@@ -737,7 +779,7 @@ static int conv_driver(int argc, char ** argv){
         }
 
         if (save_out) {
-            float * wrw_out = new float[t_filter_grad->elem()];
+            dtype * wrw_out = new dtype[t_filter_grad->elem()];
             gpu_dev->tensor_copy(wrw_out, t_filter_grad, t_filter_grad->bytes(), TENSOR_COPY_D2H);
             writeToTxt("conv_wrw_out.txt", wrw_out, t_filter_grad->elem());
             delete[] wrw_out;
