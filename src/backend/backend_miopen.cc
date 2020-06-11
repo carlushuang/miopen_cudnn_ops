@@ -92,10 +92,18 @@ device_hip::~device_hip(){
 
 double device_hip::get_theoretical_gflops(tensor_data_type data_type, int is_tensor_op)
 {
+    hipDeviceProp_t devProp;
+    hipGetDeviceProperties(&devProp, 0);
+
+    //std::cout << "Device name " << devProp.name << std::endl;
+    //std::cout << "GCN " << devProp.gcnArch << std::endl;
     // TODO: hard code to gfx906, 60 CU
     if(data_type == TENSOR_DT_FLOAT)
     {
-        return 13.41 * 1000; 
+        if(906 == devProp.gcnArch)
+            return 13.41 * 1000; 
+        else if(908 == devProp.gcnArch)
+            return 39.4 * 1000;
     }
     return 0;
 }
