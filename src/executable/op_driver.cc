@@ -118,6 +118,22 @@ void rand_float<fp16_t>(fp16_t * vec, int len){
     }
 }
 
+int env_get_int(const char * env_name, int default_value)
+{
+    char * env_value = getenv(env_name);
+    if(!env_value)
+        return default_value;
+    return atoi(env_value);
+}
+
+std::string env_get_string(const char * env_name, std::string default_value)
+{
+    char * env_value = getenv(env_name);
+    if(!env_value)
+        return default_value;
+    return std::string(env_value);
+}
+
 // parse int arg value
 class arg_parser{
 #define ARG_VALUE_INIT "n/a"
@@ -303,27 +319,27 @@ static int pooling_driver(int argc, char ** argv){
     // create gpu tensors
     op_pooling = operator_create(gpu_dev, OP_POOLING, pooling_desc);
 
-    t_in = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    t_in = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, layout);
     op_pooling->input = t_in;
     op_pooling->infer_shape(t_out_dim);
-    t_out = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    t_out = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, layout);
     op_pooling->output = t_out;
     if(!is_fwd){
-        t_in_grad = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
-        t_out_grad = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        t_in_grad = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, layout);
+        t_out_grad = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, layout);
         op_pooling->input_grad = t_in_grad;
         op_pooling->output_grad = t_out_grad;
     }
 
     // create cpu tensors
     op_pooling_c = operator_create(cpu_dev, OP_POOLING, pooling_desc_c);
-    t_in_c = cpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
-    t_out_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    t_in_c = cpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, layout);
+    t_out_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, layout);
     op_pooling_c->input = t_in_c;
     op_pooling_c->output = t_out_c;
     if(!is_fwd){
-        t_in_grad_c = cpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
-        t_out_grad_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        t_in_grad_c = cpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, layout);
+        t_out_grad_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, layout);
         op_pooling_c->input_grad = t_in_grad_c;
         op_pooling_c->output_grad = t_out_grad_c;
     }
@@ -534,6 +550,20 @@ static int conv_driver(int argc, char ** argv){
     int is_verify = parser.get_arg_int("V");
     int num_warmup = LOOP_WARMUP;
     enum tensor_data_type tensor_dtype = get_tensor_type_t<dtype>::get();
+    std::string layout_str = env_get_string("TENSOR_LAYOUT", "NCHW");
+    enum tensor_layout layout;
+    if (layout_str == "NCHW"){
+        layout = TENSOR_LAYOUT_NCHW;
+    } else if (layout_str == "NHWC"){
+#ifdef WITH_MIOPEN
+        printf("miopen not support nhwc\n");
+        return 0;
+#endif
+        layout = TENSOR_LAYOUT_NHWC;
+    } else{
+        printf("unknow layout %s\n", layout_str.c_str());
+        return 0;
+    }
 
 	// TODO: currently do verify at fp32 only
 	is_verify &= tensor_dtype == TENSOR_DT_FLOAT ? 1 : 0;
@@ -586,38 +616,38 @@ static int conv_driver(int argc, char ** argv){
     op_conv = operator_create(gpu_dev, OP_CONV, conv_desc);
     op_conv_c = operator_create(cpu_dev, OP_CONV, conv_desc_c);
 
-    t_in = gpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, TENSOR_LAYOUT_NCHW);
+    t_in = gpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, layout);
     op_conv->input = t_in;
-    t_filter = gpu_dev->tensor_create(t_filter_dim, 4, tensor_dtype, TENSOR_LAYOUT_NCHW);
+    t_filter = gpu_dev->tensor_create(t_filter_dim, 4, tensor_dtype, layout);
     op_conv->filter = t_filter;
     op_conv->infer_shape(t_out_dim);
-    t_out = gpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, TENSOR_LAYOUT_NCHW);
+    t_out = gpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, layout);
     op_conv->output = t_out;
 
-    t_in_c = cpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, TENSOR_LAYOUT_NCHW);
-    t_out_c = cpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, TENSOR_LAYOUT_NCHW);
-    t_filter_c = cpu_dev->tensor_create(t_filter_dim, 4, tensor_dtype, TENSOR_LAYOUT_NCHW);
+    t_in_c = cpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, layout);
+    t_out_c = cpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, layout);
+    t_filter_c = cpu_dev->tensor_create(t_filter_dim, 4, tensor_dtype, layout);
     op_conv_c->filter = t_filter_c;
     op_conv_c->input = t_in_c;
     op_conv_c->output = t_out_c;
 
     if(is_bwd){
-        t_in_grad = gpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, TENSOR_LAYOUT_NCHW);
-        t_out_grad = gpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, TENSOR_LAYOUT_NCHW);
+        t_in_grad = gpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, layout);
+        t_out_grad = gpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, layout);
         op_conv->input_grad = t_in_grad;
         op_conv->output_grad = t_out_grad;
 
-        t_in_grad_c = cpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, TENSOR_LAYOUT_NCHW);
-        t_out_grad_c = cpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, TENSOR_LAYOUT_NCHW);
+        t_in_grad_c = cpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, layout);
+        t_out_grad_c = cpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, layout);
         op_conv_c->input_grad = t_in_grad_c;
         op_conv_c->output_grad = t_out_grad_c;
     }
 
     if (is_wrw) {
-        t_filter_grad = gpu_dev->tensor_create(t_filter_dim, 4, tensor_dtype, TENSOR_LAYOUT_NCHW);
+        t_filter_grad = gpu_dev->tensor_create(t_filter_dim, 4, tensor_dtype, layout);
         op_conv->filter_grad = t_filter_grad;
 
-        t_filter_grad_c = cpu_dev->tensor_create(t_filter_dim, 4, tensor_dtype, TENSOR_LAYOUT_NCHW);
+        t_filter_grad_c = cpu_dev->tensor_create(t_filter_dim, 4, tensor_dtype, layout);
         op_conv_c->filter_grad = t_filter_grad_c;
     }
 
@@ -865,27 +895,27 @@ static int act_driver(int argc, char ** argv){
     // create gpu tensors
     op_act = operator_create(gpu_dev, OP_ACTIVATION, act_desc);
 
-    t_in = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    t_in = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, layout);
     op_act->input = t_in;
     op_act->infer_shape(t_out_dim);
-    t_out = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    t_out = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, layout);
     op_act->output = t_out;
     if(!is_fwd){
-        t_in_grad = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
-        t_out_grad = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        t_in_grad = gpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, layout);
+        t_out_grad = gpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, layout);
         op_act->input_grad = t_in_grad;
         op_act->output_grad = t_out_grad;
     }
 
     // create cpu tensors
     op_act_c = operator_create(cpu_dev, OP_ACTIVATION, act_desc_c);
-    t_in_c = cpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
-    t_out_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+    t_in_c = cpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, layout);
+    t_out_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, layout);
     op_act_c->input = t_in_c;
     op_act_c->output = t_out_c;
     if(!is_fwd){
-        t_in_grad_c = cpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
-        t_out_grad_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, TENSOR_LAYOUT_NCHW);
+        t_in_grad_c = cpu_dev->tensor_create(t_in_dim, 4, TENSOR_DT_FLOAT, layout);
+        t_out_grad_c = cpu_dev->tensor_create(t_out_dim, 4, TENSOR_DT_FLOAT, layout);
         op_act_c->input_grad = t_in_grad_c;
         op_act_c->output_grad = t_out_grad_c;
     }

@@ -2,7 +2,9 @@
 #include "backend.hpp"
 
 op_convolution_miopen::op_convolution_miopen(void * desc): op_convolution(desc){
-
+    fwd_algo_valid = true;
+    bwd_filter_algo_valid = true;
+    bwd_data_algo_valid = true;
 }
 op_convolution_miopen::~op_convolution_miopen(){
 

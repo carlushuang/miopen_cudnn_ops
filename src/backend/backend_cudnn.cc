@@ -120,7 +120,7 @@ tensor_t * device_cuda::tensor_create(size_t * dims, size_t n_dim,
         return tensor;
     }
     assert(n_dim == 4 && "current only support 4 dim tensor");
-    assert(layout == TENSOR_LAYOUT_NCHW && "current only support NCHW");
+    // assert(layout == TENSOR_LAYOUT_NCHW && "current only support NCHW");
 
     cudnnTensorDescriptor_t desc;
     CHECK_CUDNN(cudnnCreateTensorDescriptor(&desc));

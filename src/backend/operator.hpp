@@ -121,6 +121,9 @@ public:
     miopenConvFwdAlgorithm_t fwd_algo;
     miopenConvBwdWeightsAlgorithm_t bwd_weights_algo;
     miopenConvBwdDataAlgorithm_t bwd_data_algo;
+    bool fwd_algo_valid;
+    bool bwd_filter_algo_valid;
+    bool bwd_data_algo_valid;
 };
 #endif
 #ifdef WITH_CUDNN
@@ -143,6 +146,9 @@ public:
     cudnnConvolutionFwdAlgo_t fwd_algo;
     cudnnConvolutionBwdFilterAlgo_t bwd_filter_algo;
     cudnnConvolutionBwdDataAlgo_t bwd_data_algo;
+    bool fwd_algo_valid;
+    bool bwd_filter_algo_valid;
+    bool bwd_data_algo_valid;
 };
 #endif
 

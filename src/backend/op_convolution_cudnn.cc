@@ -1,7 +1,9 @@
 #include "operator.hpp"
 
 op_convolution_cudnn::op_convolution_cudnn(void * desc) : op_convolution(desc){
-
+    fwd_algo_valid = true;
+    bwd_filter_algo_valid = true;
+    bwd_data_algo_valid = true;
 }
 op_convolution_cudnn::~op_convolution_cudnn(){
     if(forward_tuned){
@@ -100,7 +102,7 @@ void op_convolution_cudnn::tune_op(){
 				*/
 
         // find fwd algo
-#if 0
+#if 1
         cudnnConvolutionFwdAlgoPerf_t perfs[8];
         int returned_algos;
 
@@ -120,15 +122,8 @@ void op_convolution_cudnn::tune_op(){
         }
 #endif
         fwd_algo = perfs[0].algo;
-#ifdef OP_CONV_SELECT
-        for(int i=0;i<returned_algos;i++){
-            if(perfs[i].algo == CUDNN_CONVOLUTION_FWD_ALGO_FFT_TILING || 
-                perfs[i].algo == CUDNN_CONVOLUTION_FWD_ALGO_FFT){
-                fwd_algo = perfs[i].algo;
-                break;
-            }
-        }
-#endif
+        if(perfs[0].status != CUDNN_STATUS_SUCCESS)
+            fwd_algo_valid = false;
 #else
         CHECK_CUDNN(cudnnGetConvolutionForwardAlgorithm(dev_cuda->handle,
             (const cudnnTensorDescriptor_t)input->desc,
@@ -138,19 +133,23 @@ void op_convolution_cudnn::tune_op(){
             CUDNN_CONVOLUTION_FWD_PREFER_FASTEST, 0, &fwd_algo));
 #endif
 
-        // find workspace
-        CHECK_CUDNN(cudnnGetConvolutionForwardWorkspaceSize(dev_cuda->handle,
-            (const cudnnTensorDescriptor_t)input->desc,
-            filter_desc,
-            (const cudnnConvolutionDescriptor_t)conv_desc->desc,
-            (const cudnnTensorDescriptor_t)output->desc, fwd_algo, &fwd_workspace_size));
-        fwd_workspace_mem = fwd_workspace_size?
-                            dev->ws->get(fwd_workspace_size, input->data_type):
-                            nullptr;
+        if(fwd_algo_valid){
+            // find workspace
+            CHECK_CUDNN(cudnnGetConvolutionForwardWorkspaceSize(dev_cuda->handle,
+                (const cudnnTensorDescriptor_t)input->desc,
+                filter_desc,
+                (const cudnnConvolutionDescriptor_t)conv_desc->desc,
+                (const cudnnTensorDescriptor_t)output->desc, fwd_algo, &fwd_workspace_size));
+            fwd_workspace_mem = fwd_workspace_size?
+                                dev->ws->get(fwd_workspace_size, input->data_type):
+                                nullptr;
+        }
     }
+
 
     if(!(input_grad && output_grad))
         return ;        // ignore bwd
+
     if(!backward_data_tuned){
         backward_data_tuned = 1;
 
@@ -173,16 +172,20 @@ void op_convolution_cudnn::tune_op(){
         }
 #endif
         bwd_data_algo = perfs_data[0].algo;
+        if(perfs_data[0].status != CUDNN_STATUS_SUCCESS)
+            bwd_data_algo_valid = false;
 
-        CHECK_CUDNN(cudnnGetConvolutionBackwardDataWorkspaceSize(dev_cuda->handle,
-            filter_desc,
-            (const cudnnTensorDescriptor_t)output_grad->desc,
-            (const cudnnConvolutionDescriptor_t)conv_desc->desc,
-            (const cudnnTensorDescriptor_t)input_grad->desc,
-            bwd_data_algo, &bwd_data_workspace_size));
-        //bwd_data_workspace_mem = bwd_data_workspace_size?
-        //                        dev->ws->get(bwd_data_workspace_size, input->data_type):
-        //                        nullptr;
+        if(bwd_data_algo_valid){
+            CHECK_CUDNN(cudnnGetConvolutionBackwardDataWorkspaceSize(dev_cuda->handle,
+                filter_desc,
+                (const cudnnTensorDescriptor_t)output_grad->desc,
+                (const cudnnConvolutionDescriptor_t)conv_desc->desc,
+                (const cudnnTensorDescriptor_t)input_grad->desc,
+                bwd_data_algo, &bwd_data_workspace_size));
+            //bwd_data_workspace_mem = bwd_data_workspace_size?
+            //                        dev->ws->get(bwd_data_workspace_size, input->data_type):
+            //                        nullptr;
+        }
     }
 
 	if (!filter_grad)
@@ -209,16 +212,20 @@ void op_convolution_cudnn::tune_op(){
         }
 #endif
         bwd_filter_algo = perfs_filter[0].algo;
+        if(perfs_filter[0].status != CUDNN_STATUS_SUCCESS)
+            bwd_filter_algo_valid = false;
 
-        CHECK_CUDNN(cudnnGetConvolutionBackwardFilterWorkspaceSize(dev_cuda->handle,
-            (const cudnnTensorDescriptor_t)input->desc,
-            (const cudnnTensorDescriptor_t)output_grad->desc,
-            (const cudnnConvolutionDescriptor_t)conv_desc->desc,
-            filter_desc,
-            bwd_filter_algo, &bwd_filter_workspace_size));
-        //bwd_filter_workspace_mem = bwd_filter_workspace_size?
-        //                        dev->ws->get(bwd_filter_workspace_size, input->data_type):
-        //                        nullptr;
+        if(bwd_filter_algo_valid){
+            CHECK_CUDNN(cudnnGetConvolutionBackwardFilterWorkspaceSize(dev_cuda->handle,
+                (const cudnnTensorDescriptor_t)input->desc,
+                (const cudnnTensorDescriptor_t)output_grad->desc,
+                (const cudnnConvolutionDescriptor_t)conv_desc->desc,
+                filter_desc,
+                bwd_filter_algo, &bwd_filter_workspace_size));
+            //bwd_filter_workspace_mem = bwd_filter_workspace_size?
+            //                        dev->ws->get(bwd_filter_workspace_size, input->data_type):
+            //                        nullptr;
+        }
     }
 }
 
@@ -227,7 +234,8 @@ void op_convolution_cudnn::forward(){
     assert(input && output && filter);
     assert(forward_tuned);
     device_cuda * dev_cuda = (device_cuda *)dev;
-
+    if(!fwd_algo_valid)
+        return;
 #if 0
     dump_cudnn_convolution_desc((const cudnnConvolutionDescriptor_t)conv_desc->desc);
     dump_cudnn_filter_desc(filter_desc);
@@ -250,6 +258,8 @@ void op_convolution_cudnn::backward_data(){
     assert(filter && input_grad && output_grad);
     assert(backward_data_tuned);
     device_cuda * dev_cuda = (device_cuda *)dev;
+    if(!bwd_data_algo_valid)
+        return;
 
     float alpha = 1.f;
     float beta = 0.f;
@@ -269,6 +279,8 @@ void op_convolution_cudnn::backward_filter(){
     assert(input && output && filter && input_grad && output_grad && filter_grad);
     assert(backward_filter_tuned);
     device_cuda * dev_cuda = (device_cuda *)dev;
+    if(!bwd_filter_algo_valid)
+        return ;
 
     float alpha = 1.f;
     float beta = 0.f;
@@ -424,12 +436,20 @@ void op_convolution_cudnn::print_bwd_time(const float kernel_average_time) {
     {
         FILE * fp = get_fp();
         if(fp){
-                    // ,algo(fwd),workspace,time(ms),gflops,efficiency(%)");
-            fprintf(fp, ",%s,%s,%.2f,%.2f,%.2f%%",
-                algo_name.c_str(), util_b2string(bwd_data_workspace_size).c_str(),
-                kernel_average_time, flopCnt / kernel_average_time / 1e6,
-                flopCnt / kernel_average_time / 1e4 / dev->get_theoretical_gflops(input->data_type));
-            fclose(fp);
+            if(bwd_data_algo_valid){
+                        // ,algo(fwd),workspace,time(ms),gflops,efficiency(%)");
+                fprintf(fp, ",%s,%s,%.2f,%.2f,%.2f%%",
+                    algo_name.c_str(), util_b2string(bwd_data_workspace_size).c_str(),
+                    kernel_average_time, flopCnt / kernel_average_time / 1e6,
+                    flopCnt / kernel_average_time / 1e4 / dev->get_theoretical_gflops(input->data_type));
+                fclose(fp);
+            }else{
+                        // ,algo(fwd),workspace,time(ms),gflops,efficiency(%)");
+                fprintf(fp, ",%s,%s,%.2f,%.2f,%.2f%%",
+                    "unsupported", "0",
+                    0, 0, 0);
+                fclose(fp);
+            }
         }
     }
 #endif
@@ -487,13 +507,23 @@ void op_convolution_cudnn::print_wrw_time(const float kernel_average_time) {
     {
         FILE * fp = get_fp();
         if(fp){
-                    // ,algo(fwd),workspace,time(ms),gflops,efficiency(%)");
-            fprintf(fp, ",%s,%s,%.2f,%.2f,%.2f%%",
-                algo_name.c_str(), util_b2string(bwd_filter_workspace_size).c_str(),
-                kernel_average_time, flopCnt / kernel_average_time / 1e6,
-                flopCnt / kernel_average_time / 1e4 / dev->get_theoretical_gflops(input->data_type));
-            fprintf(fp,"\n");
-            fclose(fp);
+            if(bwd_filter_algo_valid){
+                        // ,algo(wrw),workspace,time(ms),gflops,efficiency(%)");
+                fprintf(fp, ",%s,%s,%.2f,%.2f,%.2f%%",
+                    algo_name.c_str(), util_b2string(bwd_filter_workspace_size).c_str(),
+                    kernel_average_time, flopCnt / kernel_average_time / 1e6,
+                    flopCnt / kernel_average_time / 1e4 / dev->get_theoretical_gflops(input->data_type));
+                fprintf(fp,"\n");
+                fclose(fp);
+            }else{
+                        // ,algo(wrw),workspace,time(ms),gflops,efficiency(%)");
+                fprintf(fp, ",%s,%s,%.2f,%.2f,%.2f%%",
+                    "unsupported", "0",
+                    0, 0, 0);
+                fprintf(fp,"\n");
+                fclose(fp);
+            }
+
         }
     }
 #endif
