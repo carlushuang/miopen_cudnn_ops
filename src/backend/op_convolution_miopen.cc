@@ -257,13 +257,13 @@ void op_convolution_miopen::backward_filter(){
     device_hip * dev_hip = (device_hip *)dev;
 
     bwd_filter_workspace_mem = bwd_filter_workspace_size?
-                                dev->ws->get(bwd_filter_workspace_size, input->data_type):
+                                dev->ws->get(bwd_filter_workspace_size, input_grad->data_type):
                                 nullptr;
     float alpha = 1.f;
     float beta = 0.f;
     CHECK_MIO(miopenConvolutionBackwardWeights(dev_hip->handle, &alpha,
         (const miopenTensorDescriptor_t)output_grad->desc, output_grad->mem,
-        (const miopenTensorDescriptor_t)input->desc, input->mem,
+        (const miopenTensorDescriptor_t)input_grad->desc, input_grad->mem,
         (const miopenConvolutionDescriptor_t)conv_desc->desc,
         bwd_weights_algo, &beta,
         (const miopenTensorDescriptor_t)filter_grad->desc, filter_grad->mem,

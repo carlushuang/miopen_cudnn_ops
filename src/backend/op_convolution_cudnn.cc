@@ -276,7 +276,8 @@ void op_convolution_cudnn::backward_data(){
             (const cudnnTensorDescriptor_t)input_grad->desc, input_grad->mem));
 }
 void op_convolution_cudnn::backward_filter(){
-    assert(input && output && filter && input_grad && output_grad && filter_grad);
+    printf("input_grad:%p, output_grad:%p, filter_grad:%p\n", input_grad , output_grad , filter_grad);
+    assert(input_grad && output_grad && filter_grad);
     assert(backward_filter_tuned);
     device_cuda * dev_cuda = (device_cuda *)dev;
     if(!bwd_filter_algo_valid)
@@ -285,11 +286,11 @@ void op_convolution_cudnn::backward_filter(){
     float alpha = 1.f;
     float beta = 0.f;
     bwd_filter_workspace_mem = bwd_filter_workspace_size?
-                                dev->ws->get(bwd_filter_workspace_size, input->data_type):
+                                dev->ws->get(bwd_filter_workspace_size, input_grad->data_type):
                                 nullptr;
     CHECK_CUDNN(cudnnConvolutionBackwardFilter(dev_cuda->handle,
             &alpha,
-            (const cudnnTensorDescriptor_t)input->desc, input->mem,
+            (const cudnnTensorDescriptor_t)input_grad->desc, input_grad->mem,
             (const cudnnTensorDescriptor_t)output_grad->desc, output_grad->mem,
             (const cudnnConvolutionDescriptor_t)conv_desc->desc,
             bwd_filter_algo, bwd_filter_workspace_mem, bwd_filter_workspace_size,

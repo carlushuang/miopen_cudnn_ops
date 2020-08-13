@@ -23,6 +23,11 @@ using fp32_t = float;
 using fp16_t = half_float::half;
 using bf16_t = _bf16_t;
 
+
+static inline int conv_size(int in_size, int pad, int dilation, int ksize, int stride){
+    return (in_size + 2*pad- dilation*(ksize-1) -1)/stride + 1;
+};
+
 static int valid_vector_rms(float *lhs, float *rhs, size_t num, float *rms_error, float threshold=1e-6){
     size_t i;
     double d=0;
@@ -552,6 +557,8 @@ static int conv_driver(int argc, char ** argv){
     enum tensor_data_type tensor_dtype = get_tensor_type_t<dtype>::get();
     std::string layout_str = env_get_string("TENSOR_LAYOUT", "NCHW");
     enum tensor_layout layout;
+    size_t output_h = conv_size(input_h, pad_h, dilation_h, fil_h, stride_h);
+    size_t output_w = conv_size(input_w, pad_w, dilation_w, fil_w, stride_w);
     if (layout_str == "NCHW"){
         layout = TENSOR_LAYOUT_NCHW;
     } else if (layout_str == "NHWC"){
@@ -604,50 +611,71 @@ static int conv_driver(int argc, char ** argv){
             _ksize, _stride, _pad, _dilation, 2,
             groups, output_c, input_c, input_h, input_w);
 
-    tensor_t *t_in, *t_out, *t_filter, *t_in_c, *t_out_c, *t_filter_c;
-    tensor_t *t_in_grad, *t_out_grad, *t_filter_grad;
-    tensor_t *t_in_grad_c, *t_out_grad_c, *t_filter_grad_c;
+    tensor_t *t_in              = nullptr;
+    tensor_t *t_out             = nullptr;
+    tensor_t *t_filter          = nullptr;
+    tensor_t *t_in_c            = nullptr;
+    tensor_t *t_out_c           = nullptr;
+    tensor_t *t_filter_c        = nullptr;
+    tensor_t *t_in_grad         = nullptr;
+    tensor_t *t_out_grad        = nullptr;
+    tensor_t *t_filter_grad     = nullptr;
+    tensor_t *t_in_grad_c       = nullptr;
+    tensor_t *t_out_grad_c      = nullptr;
+    tensor_t *t_filter_grad_c   = nullptr;
+
     operator_base *op_conv, *op_conv_c;
-    size_t t_in_dim[4] = {batch,input_c,input_h,input_w};
+    size_t t_in_dim[4] = {batch, input_c, input_h, input_w};
     size_t t_filter_dim[4] = {(size_t)output_c, (size_t)(input_c/groups), (size_t)fil_h, (size_t)fil_w};
-    size_t t_out_dim[4];
+    size_t t_out_dim[4] = {batch, output_c, output_h, output_w};
 
     // create gpu tensors
     op_conv = operator_create(gpu_dev, OP_CONV, conv_desc);
     op_conv_c = operator_create(cpu_dev, OP_CONV, conv_desc_c);
 
-    t_in = gpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, layout);
-    op_conv->input = t_in;
+
+    t_in     = gpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, layout);
     t_filter = gpu_dev->tensor_create(t_filter_dim, 4, tensor_dtype, layout);
+    t_out    = gpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, layout);
+    op_conv->input = t_in;
     op_conv->filter = t_filter;
-    op_conv->infer_shape(t_out_dim);
-    t_out = gpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, layout);
     op_conv->output = t_out;
 
-    t_in_c = cpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, layout);
-    t_out_c = cpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, layout);
+    t_in_c  = cpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, layout);
     t_filter_c = cpu_dev->tensor_create(t_filter_dim, 4, tensor_dtype, layout);
+    t_out_c = cpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, layout);
     op_conv_c->filter = t_filter_c;
     op_conv_c->input = t_in_c;
     op_conv_c->output = t_out_c;
 
+
     if(is_bwd){
-        t_in_grad = gpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, layout);
-        t_out_grad = gpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, layout);
+        if(!t_in_grad)  t_in_grad = gpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, layout);
+        if(!t_filter)   t_filter = gpu_dev->tensor_create(t_filter_dim, 4, tensor_dtype, layout);
+        if(!t_out_grad)  t_out_grad = gpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, layout);
         op_conv->input_grad = t_in_grad;
         op_conv->output_grad = t_out_grad;
 
-        t_in_grad_c = cpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, layout);
-        t_out_grad_c = cpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, layout);
+        if(!t_in_grad_c) t_in_grad_c = cpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, layout);
+        if(!t_filter_c) t_filter_c = cpu_dev->tensor_create(t_filter_dim, 4, tensor_dtype, layout);
+        if(!t_out_grad_c) t_out_grad_c = cpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, layout);
         op_conv_c->input_grad = t_in_grad_c;
         op_conv_c->output_grad = t_out_grad_c;
     }
 
     if (is_wrw) {
-        t_filter_grad = gpu_dev->tensor_create(t_filter_dim, 4, tensor_dtype, layout);
+        if(!t_in_grad) t_in_grad = gpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, layout);
+        if(!t_out_grad) t_out_grad = gpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, layout);
+        if(!t_filter_grad) t_filter_grad = gpu_dev->tensor_create(t_filter_dim, 4, tensor_dtype, layout);
+        op_conv->input_grad = t_in_grad;
+        op_conv->output_grad = t_out_grad;
         op_conv->filter_grad = t_filter_grad;
 
-        t_filter_grad_c = cpu_dev->tensor_create(t_filter_dim, 4, tensor_dtype, layout);
+        if(!t_in_grad_c) t_in_grad_c = cpu_dev->tensor_create(t_in_dim, 4, tensor_dtype, layout);
+        if(!t_out_grad_c) t_out_grad_c = cpu_dev->tensor_create(t_out_dim, 4, tensor_dtype, layout);
+        if(!t_filter_grad_c) t_filter_grad_c = cpu_dev->tensor_create(t_filter_dim, 4, tensor_dtype, layout);
+        op_conv_c->input_grad = t_in_grad_c;
+        op_conv_c->output_grad = t_out_grad_c;
         op_conv_c->filter_grad = t_filter_grad_c;
     }
 
@@ -821,27 +849,22 @@ static int conv_driver(int argc, char ** argv){
     // clean
     operator_destroy(op_conv);
     gpu_dev->convolution_desc_destroy(conv_desc);
-    gpu_dev->tensor_destroy(t_in);
-    gpu_dev->tensor_destroy(t_out);
-    gpu_dev->tensor_destroy(t_filter);
+    if(t_in) gpu_dev->tensor_destroy(t_in);
+    if(t_out) gpu_dev->tensor_destroy(t_out);
+    if(t_filter) gpu_dev->tensor_destroy(t_filter);
 
     operator_destroy(op_conv_c);
     cpu_dev->convolution_desc_destroy(conv_desc_c);
-    cpu_dev->tensor_destroy(t_in_c);
-    cpu_dev->tensor_destroy(t_out_c);
-    cpu_dev->tensor_destroy(t_filter_c);
+    if(t_in_c) cpu_dev->tensor_destroy(t_in_c);
+    if(t_out_c) cpu_dev->tensor_destroy(t_out_c);
+    if(t_filter_c) cpu_dev->tensor_destroy(t_filter_c);
 
-    if(is_bwd){
-        gpu_dev->tensor_destroy(t_in_grad);
-        gpu_dev->tensor_destroy(t_out_grad);
-        cpu_dev->tensor_destroy(t_in_grad_c);
-        cpu_dev->tensor_destroy(t_out_grad_c);
-    }
-
-    if(is_wrw){
-        gpu_dev->tensor_destroy(t_filter_grad);
-        cpu_dev->tensor_destroy(t_filter_grad_c);
-    }
+    if(t_in_grad) gpu_dev->tensor_destroy(t_in_grad);
+    if(t_out_grad) gpu_dev->tensor_destroy(t_out_grad);
+    if(t_filter_grad) gpu_dev->tensor_destroy(t_filter_grad);
+    if(t_in_grad_c) cpu_dev->tensor_destroy(t_in_grad_c);
+    if(t_out_grad_c) cpu_dev->tensor_destroy(t_out_grad_c);
+    if(t_filter_grad_c) cpu_dev->tensor_destroy(t_filter_grad_c);
 
     return 0;
 }
