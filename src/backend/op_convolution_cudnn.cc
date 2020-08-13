@@ -276,7 +276,6 @@ void op_convolution_cudnn::backward_data(){
             (const cudnnTensorDescriptor_t)input_grad->desc, input_grad->mem));
 }
 void op_convolution_cudnn::backward_filter(){
-    printf("input_grad:%p, output_grad:%p, filter_grad:%p\n", input_grad , output_grad , filter_grad);
     assert(input_grad && output_grad && filter_grad);
     assert(backward_filter_tuned);
     device_cuda * dev_cuda = (device_cuda *)dev;
