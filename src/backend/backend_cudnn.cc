@@ -331,7 +331,7 @@ convolution_desc_t * device_cuda::convolution_desc_create(convolution_mode mode,
 
         CHECK_CUDNN(cudnnSetConvolution2dDescriptor(desc_wrw, padding[0], padding[1],
 				stride[0], stride[1], dilation[0], dilation[1],
-				to_cudnn_convolution_mode(mode), CUDNN_DATA_FLOAT));
+				CUDNN_CONVOLUTION, CUDNN_DATA_FLOAT));
 #ifndef OP_CUDNN_FP16_NO_TENSORCORE
         if(dt == TENSOR_DT_HALF){
             CHECK_CUDNN(cudnnSetConvolutionMathType(desc_wrw, CUDNN_TENSOR_OP_MATH));

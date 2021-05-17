@@ -124,16 +124,16 @@ void inline b2s(size_t bytes, char * str){
 }
 
 template<typename dtype>
-void rand_float(dtype * vec, int len){
+void rand_float(dtype * vec, int len, float min, float max){
 	(void)vec;
 	(void)len;
 }
 
 template<>
-void rand_float<float>(float * vec, int len){
+void rand_float<float>(float * vec, int len, float min, float max){
     static std::random_device rd;
     static std::mt19937 mt(rd());
-    static std::uniform_real_distribution<float> dist(-1.f, 1.f);
+    static std::uniform_real_distribution<float> dist(min, max);
 
     for(int i=0;i<len;i++){
         vec[i] = dist(mt);
@@ -141,10 +141,10 @@ void rand_float<float>(float * vec, int len){
 }
 
 template<>
-void rand_float<fp16_t>(fp16_t * vec, int len){
+void rand_float<fp16_t>(fp16_t * vec, int len, float min, float max){
     static std::random_device rd;
     static std::mt19937 mt(rd());
-    static std::uniform_real_distribution<float> dist(-1.f, 1.f);
+    static std::uniform_real_distribution<float> dist(min, max);
 
     for(int i=0;i<len;i++){
         vec[i] = half_float::half_cast<fp16_t>(dist(mt));
@@ -407,10 +407,10 @@ static int pooling_driver(int argc, char ** argv){
     op_pooling_c->alloc_mem();
 
     // prepare input
-    rand_float((float*)t_in_c->mem, t_in_c->elem());
+    rand_float((float*)t_in_c->mem, t_in_c->elem(), -1, 1);
     gpu_dev->tensor_copy(t_in, t_in_c->mem, t_in_c->bytes(), TENSOR_COPY_H2D);
     if(!is_fwd){
-        rand_float((float*)t_out_grad_c->mem, t_out_grad_c->elem());
+        rand_float((float*)t_out_grad_c->mem, t_out_grad_c->elem(), -1, 1);
         gpu_dev->tensor_copy(t_out_grad, t_out_grad_c->mem, t_out_grad_c->bytes(), TENSOR_COPY_H2D);
 
         cpu_dev->tensor_set(t_in_grad_c, 0);
@@ -646,7 +646,12 @@ static int conv_driver(int argc, char ** argv){
     else {std::cout<<"unsupported conv mode "<<cmode<<std::endl; return -1;}
 
 	// TODO: only consider conv mode, aka cross_correlation in miopen
-	conv_mode = CONVOLUTION_CONV;
+#ifdef WITH_MIOPEN
+    conv_mode = CONVOLUTION_CONV;
+#endif
+#ifdef WITH_CUDNN
+	conv_mode = CONVOLUTION_CROSS_CORRELATION;
+#endif
 
     int _ksize[2] = {fil_h, fil_w};
     int _pad[2] = {pad_h, pad_w};
@@ -733,33 +738,33 @@ static int conv_driver(int argc, char ** argv){
     op_conv_c->alloc_mem();
 
     if (in_x == "") {
-        rand_float((dtype*)t_in_c->mem, t_in_c->elem());
+        rand_float((dtype*)t_in_c->mem, t_in_c->elem(), -1, 1);
     } else {
         if (!readFromTxt((dtype*)t_in_c->mem, t_in_c->elem(), in_x.c_str()))
-            rand_float((dtype*)t_in_c->mem, t_in_c->elem());
+            rand_float((dtype*)t_in_c->mem, t_in_c->elem(), -1, 1);
     }
     gpu_dev->tensor_copy(t_in, t_in_c->mem, t_in_c->bytes(), TENSOR_COPY_H2D);
 
     if (in_w == "") {
-        rand_float((dtype*)t_filter_c->mem, t_filter_c->elem());
+        rand_float((dtype*)t_filter_c->mem, t_filter_c->elem(), -1, 1);
     } else {
         if (!readFromTxt((dtype*)t_filter_c->mem, t_filter_c->elem(), in_w.c_str()))
-            rand_float((dtype*)t_filter_c->mem, t_filter_c->elem());
+            rand_float((dtype*)t_filter_c->mem, t_filter_c->elem(), -1, 1);
     }
     gpu_dev->tensor_copy(t_filter, t_filter_c->mem, t_filter_c->bytes(), TENSOR_COPY_H2D);
 
     if(is_bwd || is_wrw){
         if (in_dy == "") {
-            rand_float((dtype*)t_out_grad_c->mem, t_out_grad_c->elem());
+            rand_float((dtype*)t_out_grad_c->mem, t_out_grad_c->elem(), -1, 1);
         } else {
             if (!readFromTxt((dtype*)t_out_grad_c->mem, t_out_grad_c->elem(), in_dy.c_str()))
-                rand_float((dtype*)t_out_grad_c->mem, t_out_grad_c->elem());
+                rand_float((dtype*)t_out_grad_c->mem, t_out_grad_c->elem(), -1, 1);
         }
         gpu_dev->tensor_copy(t_out_grad, t_out_grad_c->mem, t_out_grad_c->bytes(), TENSOR_COPY_H2D);
     }
 
     if(is_wrw){
-        rand_float((dtype*)t_in_grad_c->mem, t_in_grad_c->elem());
+        rand_float((dtype*)t_in_grad_c->mem, t_in_grad_c->elem(), -1, 1);
         gpu_dev->tensor_copy(t_in_grad, t_in_grad_c->mem, t_in_grad_c->bytes(), TENSOR_COPY_H2D);
     }
 
@@ -1078,10 +1083,10 @@ static int act_driver(int argc, char ** argv){
     op_act_c->alloc_mem();
 
     // prepare input
-    rand_float((float*)t_in_c->mem, t_in_c->elem());
+    rand_float((float*)t_in_c->mem, t_in_c->elem(), -1, 1);
     gpu_dev->tensor_copy(t_in, t_in_c->mem, t_in_c->bytes(), TENSOR_COPY_H2D);
     if(!is_fwd){
-        rand_float((float*)t_out_grad_c->mem, t_out_grad_c->elem());
+        rand_float((float*)t_out_grad_c->mem, t_out_grad_c->elem(), -1, 1);
         gpu_dev->tensor_copy(t_out_grad, t_out_grad_c->mem, t_out_grad_c->bytes(), TENSOR_COPY_H2D);
 
         cpu_dev->tensor_set(t_in_grad_c, 0);
