@@ -75,7 +75,7 @@ elseif(WITH_CUDNN)
                 -gencode arch=compute_61,code=compute_61 -gencode arch=compute_60,code=compute_60")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -ccbin g++ ")
 
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lcudnn -lcublas")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lcudnn -lcublas -lcuda")
     add_prefix(CMAKE_EXE_LINKER_FLAGS "-Xlinker ")
     add_prefix(CMAKE_SHARED_LINKER_FLAGS "-Xlinker ")
     add_prefix(CMAKE_STATIC_LINKER_FLAGS "-Xlinker ")

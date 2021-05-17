@@ -65,6 +65,8 @@ enum tensor_layout{
     TENSOR_LAYOUT_1D = 0,
     TENSOR_LAYOUT_NCHW,
     TENSOR_LAYOUT_NHWC,
+    TENSOR_LAYOUT_NCDHW,
+    TENSOR_LAYOUT_NDHWC,
 };
 enum tensor_copy_kind{
     TENSOR_COPY_D2H = 0,
@@ -72,6 +74,32 @@ enum tensor_copy_kind{
     TENSOR_COPY_D2D,
     TENSOR_COPY_ANY
 };
+
+enum tensor_layout inline tensor_string_to_layout(std::string layout_str)
+{
+    if(layout_str == "NCHW")
+        return TENSOR_LAYOUT_NCHW;
+    if(layout_str == "NHWC")
+        return TENSOR_LAYOUT_NHWC;
+    if(layout_str == "NCDHW")
+        return TENSOR_LAYOUT_NCDHW;
+    if(layout_str == "NDHWC")
+        return TENSOR_LAYOUT_NDHWC;
+    assert(false);
+}
+
+std::string inline tensor_layout_to_string(enum tensor_layout layout)
+{
+    if(layout == TENSOR_LAYOUT_NCHW)
+        return "NCHW";
+    if(layout == TENSOR_LAYOUT_NHWC)
+        return "NHWC";
+    if(layout == TENSOR_LAYOUT_NCDHW)
+        return "NCDHW";
+    if(layout == TENSOR_LAYOUT_NDHWC)
+        return "NDHWC";
+    assert(false);
+}
 
 #define MAX_TENSOR_DIM 4
 struct tensor_t{
@@ -339,6 +367,7 @@ void dump_miopen_tensor_desc(const miopenTensorDescriptor_t tensor_desc);
 
 #ifdef WITH_CUDNN
 #include <cuda_runtime.h>
+#include <cuda.h>
 #include <cudnn.h>
 
 #define CHECK_CUDA(cmd) \
@@ -346,6 +375,17 @@ do {\
     cudaError_t cuda_error  = cmd;\
     if (cuda_error != cudaSuccess) { \
         LOG_E()<<"'"<<cudaGetErrorString(cuda_error)<<"'("<<cuda_error<<")"<<" at "<<__FILE__<<":"<<__LINE__<<std::endl;\
+        exit(EXIT_FAILURE);\
+    }\
+} while(0)
+
+#define CHECK_CU(cmd) \
+do {\
+    CUresult cu_error  = cmd;\
+    if (cu_error != CUDA_SUCCESS) { \
+        const char * p_str;               \
+        cuGetErrorString(cu_error, &p_str); \
+        LOG_E()<<"'"<<p_str<<"'("<<cu_error<<")"<<" at "<<__FILE__<<":"<<__LINE__<<std::endl;\
         exit(EXIT_FAILURE);\
     }\
 } while(0)

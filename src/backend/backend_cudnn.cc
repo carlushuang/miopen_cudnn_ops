@@ -17,6 +17,8 @@ static inline void dump_dev_prop(cudaDeviceProp * prop, int dev_id){
 device_cuda::device_cuda(int dev_id){
     this->type = DEVICE_CUDA;
     int devcount;
+    CHECK_CU(cuInit(0));
+#if 0
     CHECK_CUDA(cudaGetDeviceCount(&devcount));
     assert(dev_id < devcount && "dev request must small than available ");
 
@@ -26,14 +28,16 @@ device_cuda::device_cuda(int dev_id){
         dump_dev_prop(&cuda_prop, i);
     }
 
-    cudnnHandle_t h;
+    
     cudaStream_t q;
     CHECK_CUDA(cudaSetDevice(dev_id));
     CHECK_CUDA(cudaStreamCreate(&q));
+#endif
+    cudnnHandle_t h;
     CHECK_CUDNN(cudnnCreate(&h));
 
     this->id = dev_id;
-    this->queue = q;
+    this->queue = NULL;
     this->handle = h;
 }
 device_cuda::~device_cuda(){
@@ -65,32 +69,32 @@ public:
     }
     virtual void reset(){
         if(event_created){
-            CHECK_CUDA(cudaEventDestroy(start_ev));
-            CHECK_CUDA(cudaEventDestroy(stop_ev));
+            CHECK_CU(cuEventDestroy(start_ev));
+            CHECK_CU(cuEventDestroy(stop_ev));
             event_created = false;
         }
     }
     virtual void start(){
         reset();
-        CHECK_CUDA(cudaEventCreate(&start_ev));
-        CHECK_CUDA(cudaEventCreate(&stop_ev));
+        CHECK_CU(cuEventCreate(&start_ev, CU_EVENT_BLOCKING_SYNC));
+        CHECK_CU(cuEventCreate(&stop_ev, CU_EVENT_BLOCKING_SYNC));
         event_created = true;
 
-        CHECK_CUDA(cudaDeviceSynchronize());
-        CHECK_CUDA(cudaEventRecord( start_ev, queue ));
+        // CHECK_CUDA(cuDeviceSynchronize());
+        CHECK_CU(cuEventRecord( start_ev, queue ));
     }
     virtual void stop(){
-        CHECK_CUDA(cudaEventRecord( stop_ev, queue ));
-        CHECK_CUDA(cudaEventSynchronize(stop_ev));
+        CHECK_CU(cuEventRecord( stop_ev, queue ));
+        CHECK_CU(cuEventSynchronize(stop_ev));
     }
     virtual double elapsed(){
         float ms;
-        CHECK_CUDA(cudaEventElapsedTime(&ms,start_ev, stop_ev));
+        CHECK_CU(cuEventElapsedTime(&ms,start_ev, stop_ev));
         return (double)ms;
     }
 
     cudaStream_t queue = NULL;
-    cudaEvent_t start_ev, stop_ev;
+    CUevent start_ev, stop_ev;
     bool event_created = false;     // stupid flag to control event creation
 };
 device_timer_t * device_cuda::device_timer_create(){

@@ -28,7 +28,34 @@ static inline int conv_size(int in_size, int pad, int dilation, int ksize, int s
     return (in_size + 2*pad- dilation*(ksize-1) -1)/stride + 1;
 };
 
-static int valid_vector_rms(float *lhs, float *rhs, size_t num, float *rms_error, float threshold=1e-6){
+static inline double get_nrms(std::string direction, tensor_data_type data_type){
+    auto basic_tolerance = [=]() -> double{
+        if (data_type == TENSOR_DT_FLOAT){
+            return 1.5e-6;
+        }
+        else if (data_type == TENSOR_DT_HALF){
+            return 8.2e-3;
+        }
+    };
+    double nrms = basic_tolerance();
+    if (direction == "bwd"){
+        // nrms *= 10;
+    }
+    // wrw has a high tolerance
+    if (direction == "wrw"){
+        nrms *= 2;
+        if(data_type == TENSOR_DT_FLOAT){
+            nrms = 0.01;
+        }
+        else if(data_type == TENSOR_DT_HALF){
+            nrms *= 5;
+        }
+    }
+    return nrms;
+}
+
+template<typename T>
+static int valid_vector_rms(float *lhs, T *rhs, size_t num, float *rms_error, float threshold=1e-6){
     size_t i;
     double d=0;
     double sx=0;
@@ -49,8 +76,8 @@ static int valid_vector_rms(float *lhs, float *rhs, size_t num, float *rms_error
 
 #define EF_PRT
 
-#define LOOP_WARMUP 2
-#define LOOP_ITR    5
+#define LOOP_WARMUP 3
+#define LOOP_ITR    7
 
 static device_base * determin_device(){
     std::string backend;
@@ -139,6 +166,20 @@ std::string env_get_string(const char * env_name, std::string default_value)
     return std::string(env_value);
 }
 
+void buffer_cast_fp32_to_fp16(fp16_t * dst, float * src, size_t num_elem)
+{
+    for(size_t i=0; i < num_elem; i++){
+        dst[i] = (fp16_t)src[i];
+    }
+}
+
+void buffer_cast_fp16_to_fp32(float * dst, fp16_t * src, size_t num_elem)
+{
+    for(size_t i=0; i < num_elem; i++){
+        dst[i] = (float)src[i];
+    }
+}
+
 // parse int arg value
 class arg_parser{
 #define ARG_VALUE_INIT "n/a"
@@ -158,6 +199,7 @@ class arg_parser{
             a.default_value = default_value;
             a.value = ARG_VALUE_INIT;
             arg_pair[a.arg_name] = a;
+            long_short_map[std::string("--") + std::string(long_name)] = a.arg_name;
         }
         bool parse(int argc, char ** argv){
             for(int i=0;i<argc;i+=2){
@@ -166,8 +208,16 @@ class arg_parser{
                     usage();
                     return false;
                 }
+                if(arg_name.compare(0, 2, "--") == 0){
+                    if(long_short_map.count(arg_name) == 0){
+                        std::cerr<<"unrecognized long arg: "<<arg_name<<std::endl;;
+                         usage();
+                        return false;
+                    }
+                    arg_name = long_short_map[arg_name];
+                }
                 if(arg_pair.count(arg_name) == 0){
-                    std::cerr<<"unrecognized arg "<<arg_name<<std::endl;;
+                    std::cerr<<"unrecognized arg: "<<arg_name<<std::endl;;
                     usage();
                     return false;
                 }
@@ -224,6 +274,7 @@ class arg_parser{
     private:
         std::string name;
         std::unordered_map<std::string, arg_store> arg_pair;
+        std::unordered_map<std::string, std::string> long_short_map;
 };
 
 static device_base * gpu_dev;
@@ -435,6 +486,9 @@ struct get_tensor_type_t<fp16_t>
 template<typename dtype>
 static int conv_driver(int argc, char ** argv){
     arg_parser parser("conv");
+    parser.insert_arg("in_layout", 'I', "NCHW", "Input Layout (Default=NCHW)", "string");
+    parser.insert_arg("out_layout", 'O', "NCHW", "Output Layout (Default=NCHW)", "string");
+    parser.insert_arg("fil_layout", 'f', "NCHW", "Input Layout (Default=NCHW)", "string");
     parser.insert_arg(
             "spatial_dim", '_', "2", "convolution spatial dimension (Default-2)", "int");
     parser.insert_arg("forw",
@@ -530,6 +584,9 @@ static int conv_driver(int argc, char ** argv){
         assert("Only convolution-2d supported now.");
 
     // get param from arg
+    std::string in_layout = parser.get_arg("I");
+    std::string out_layout = parser.get_arg("O");
+    std::string fil_layout = parser.get_arg("f");
     size_t batch    = (size_t)parser.get_arg_int("n");
     size_t input_c  = (size_t)parser.get_arg_int("c");
     size_t output_c  = parser.get_arg_int("k");
@@ -555,25 +612,15 @@ static int conv_driver(int argc, char ** argv){
     int is_verify = parser.get_arg_int("V");
     int num_warmup = LOOP_WARMUP;
     enum tensor_data_type tensor_dtype = get_tensor_type_t<dtype>::get();
-    std::string layout_str = env_get_string("TENSOR_LAYOUT", "NCHW");
-    enum tensor_layout layout;
+
     size_t output_h = conv_size(input_h, pad_h, dilation_h, fil_h, stride_h);
     size_t output_w = conv_size(input_w, pad_w, dilation_w, fil_w, stride_w);
-    if (layout_str == "NCHW"){
-        layout = TENSOR_LAYOUT_NCHW;
-    } else if (layout_str == "NHWC"){
-#ifdef WITH_MIOPEN
-        printf("miopen not support nhwc\n");
-        return 0;
-#endif
-        layout = TENSOR_LAYOUT_NHWC;
-    } else{
-        printf("unknow layout %s\n", layout_str.c_str());
-        return 0;
-    }
+
+    assert(in_layout == fil_layout && in_layout == out_layout);
+    enum tensor_layout layout = tensor_string_to_layout(in_layout);
 
 	// TODO: currently do verify at fp32 only
-	is_verify &= tensor_dtype == TENSOR_DT_FLOAT ? 1 : 0;
+	// is_verify &= tensor_dtype == TENSOR_DT_FLOAT ? 1 : 0;
 
     debug_msg("Conv2d(input=(%lu,%lu,%lu,%lu), output_channels=(%lu), kernel_size=(%d,%d), "
             "stride=(%d,%d), padding=(%d,%d), bias=%s\n\tgroups=(%d), "
@@ -727,18 +774,40 @@ static int conv_driver(int argc, char ** argv){
             op_conv->print_fwd_time(dt->elapsed() / num_iterations);
 
         if (is_verify) {
+            float nrms= get_nrms("fwd", tensor_dtype);
 			// TODO: float only!
             float *fwd_out_cpu = new float[t_out_c->elem()];
+            float *in_cpu    = (float*)t_in_c->mem;
+            float *fil_cpu   = (float*)t_filter_c->mem;
+            if(tensor_dtype == TENSOR_DT_HALF){
+                in_cpu = new float[t_in_c->elem()];
+                fil_cpu = new float[t_filter_c->elem()];
+                buffer_cast_fp16_to_fp32(in_cpu, (fp16_t*)t_in_c->mem, t_in_c->elem());
+                buffer_cast_fp16_to_fp32(fil_cpu, (fp16_t*)t_filter_c->mem, t_filter_c->elem());
+            }
             float err{0.};
-            naive_conv_fwd_nchw((const float *)t_in_c->mem,
-                    (const float *)t_filter_c->mem, fwd_out_cpu, batch,
+            if(layout == TENSOR_LAYOUT_NCHW)
+                naive_conv_fwd_nchw(in_cpu,
+                    fil_cpu, fwd_out_cpu, batch,
                     input_w, input_h, input_c, output_c, fil_w, fil_h,
                     pad_w, pad_h, stride_w, stride_h, dilation_w,
-                    dilation_h);
+                    dilation_h, groups);
+            else if(layout == TENSOR_LAYOUT_NHWC)
+                naive_conv_fwd_nhwc(in_cpu,
+                    fil_cpu, fwd_out_cpu, batch,
+                    input_w, input_h, input_c, output_c, fil_w, fil_h,
+                    pad_w, pad_h, stride_w, stride_h, dilation_w,
+                    dilation_h, groups);
 
             float *fwd_out_gpu = new float[t_out_c->elem()];
             gpu_dev->tensor_copy(fwd_out_gpu, t_out, t_out->bytes(), TENSOR_COPY_D2H);
-            if (valid_vector_rms(fwd_out_gpu, fwd_out_cpu, t_out_c->elem(), &err))
+            int is_valid = 0;
+            if(tensor_dtype == TENSOR_DT_FLOAT)
+                is_valid = valid_vector_rms<float>(fwd_out_cpu, fwd_out_gpu, t_out_c->elem(), &err, nrms);
+            else if(tensor_dtype == TENSOR_DT_HALF)
+                is_valid = valid_vector_rms<fp16_t>(fwd_out_cpu, reinterpret_cast<fp16_t*>(fwd_out_gpu), t_out_c->elem(), &err, nrms);
+
+            if (is_valid)
                 std::cout << "Forward Convolution Verifies on CPU "
                     "and GPU (" << err << ')'<< std::endl;
             else
@@ -746,6 +815,10 @@ static int conv_driver(int argc, char ** argv){
                     err << std::endl;
             delete[] fwd_out_cpu;
             delete[] fwd_out_gpu;
+            if(tensor_dtype == TENSOR_DT_HALF){
+                delete [] in_cpu;
+                delete [] fil_cpu;
+            }
         }
 
         if (save_out) {
@@ -772,17 +845,38 @@ static int conv_driver(int argc, char ** argv){
 
         if (is_verify) {
 			// TODO: float only!
+            float nrms= get_nrms("bwd", tensor_dtype);
             float *in_grad_cpu = new float[t_in_grad_c->elem()];
             float err{0.};
-            naive_conv_bwd_d_nchw(in_grad_cpu, (const float *)t_filter_c->mem,
-                    (const float *)t_out_grad_c->mem, batch,
+            float *out_cpu   = (float*)t_out_grad_c->mem;
+            float *fil_cpu   = (float*)t_filter_c->mem;
+            if(tensor_dtype == TENSOR_DT_HALF){
+                out_cpu = new float[t_out_grad_c->elem()];
+                fil_cpu = new float[t_filter_c->elem()];
+                buffer_cast_fp16_to_fp32(out_cpu, (fp16_t*)t_out_grad_c->mem, t_out_grad_c->elem());
+                buffer_cast_fp16_to_fp32(fil_cpu, (fp16_t*)t_filter_c->mem, t_filter_c->elem());
+            }
+            if(layout == TENSOR_LAYOUT_NCHW)
+                naive_conv_bwd_nchw(in_grad_cpu, fil_cpu,
+                    out_cpu, batch,
                     input_w, input_h, input_c, output_c, fil_w, fil_h,
                     pad_w, pad_h, stride_w, stride_h, dilation_w,
-                    dilation_h);
+                    dilation_h, groups);
+            else if(layout == TENSOR_LAYOUT_NHWC)
+                naive_conv_bwd_nhwc(in_grad_cpu, fil_cpu,
+                    out_cpu, batch,
+                    input_w, input_h, input_c, output_c, fil_w, fil_h,
+                    pad_w, pad_h, stride_w, stride_h, dilation_w,
+                    dilation_h, groups);
 
             float *in_grad_gpu = new float[t_in_grad_c->elem()];
             gpu_dev->tensor_copy(in_grad_gpu, t_in_grad, t_in_grad->bytes(), TENSOR_COPY_D2H);
-            if (valid_vector_rms(in_grad_gpu, in_grad_cpu, t_in_grad_c->elem(), &err))
+            int is_valid = 0;
+            if(tensor_dtype == TENSOR_DT_FLOAT)
+                is_valid = valid_vector_rms<float>(in_grad_cpu, in_grad_gpu, t_in_grad_c->elem(), &err, nrms);
+            else if(tensor_dtype == TENSOR_DT_HALF)
+                is_valid = valid_vector_rms<fp16_t>(in_grad_cpu, reinterpret_cast<fp16_t*>(in_grad_gpu), t_in_grad_c->elem(), &err, nrms);
+            if (is_valid)
                 std::cout << "Backward Convolution Data Verifies on CPU "
                     "and GPU (" << err << ')'<< std::endl;
             else
@@ -790,6 +884,10 @@ static int conv_driver(int argc, char ** argv){
                     err << std::endl;
             delete[] in_grad_gpu;
             delete[] in_grad_cpu;
+            if(tensor_dtype == TENSOR_DT_HALF){
+                delete [] out_cpu;
+                delete [] fil_cpu;
+            }
         }
 
         if (save_out) {
@@ -816,17 +914,38 @@ static int conv_driver(int argc, char ** argv){
 
         if (is_verify) {
 			// TODO: float only!
+            float nrms= get_nrms("wrw", tensor_dtype);
             float *filter_grad_cpu = new float[t_filter_grad_c->elem()];
             float err{0.};
-            naive_conv_bwd_f_nchw((const float *)t_in_c->mem, filter_grad_cpu,
-                    (const float *)t_out_grad_c->mem, batch,
+            float *in_cpu    = (float*)t_in_c->mem;
+            float *out_cpu   = (float*)t_out_grad_c->mem;
+            if(tensor_dtype == TENSOR_DT_HALF){
+                in_cpu = new float[t_in_c->elem()];
+                out_cpu = new float[t_out_grad_c->elem()];
+                buffer_cast_fp16_to_fp32(in_cpu, (fp16_t*)t_in_c->mem, t_in_c->elem());
+                buffer_cast_fp16_to_fp32(out_cpu, (fp16_t*)t_out_grad_c->mem, t_out_grad_c->elem());
+            }
+            if(layout == TENSOR_LAYOUT_NCHW)
+                naive_conv_wrw_nchw(in_cpu, filter_grad_cpu,
+                    out_cpu, batch,
                     input_w, input_h, input_c, output_c, fil_w, fil_h,
                     pad_w, pad_h, stride_w, stride_h, dilation_w,
-                    dilation_h);
+                    dilation_h, groups);
+            else if(layout == TENSOR_LAYOUT_NHWC)
+                naive_conv_wrw_nhwc(in_cpu, filter_grad_cpu,
+                    out_cpu, batch,
+                    input_w, input_h, input_c, output_c, fil_w, fil_h,
+                    pad_w, pad_h, stride_w, stride_h, dilation_w,
+                    dilation_h, groups);
 
             float *filter_grad_gpu = new float[t_filter_grad->elem()];
             gpu_dev->tensor_copy(filter_grad_gpu, t_filter_grad, t_filter_grad->bytes(), TENSOR_COPY_D2H);
-            if (valid_vector_rms(filter_grad_gpu, filter_grad_cpu, t_filter_grad_c->elem(), &err))
+            int is_valid = 0;
+            if(tensor_dtype == TENSOR_DT_FLOAT)
+                is_valid = valid_vector_rms<float>(filter_grad_cpu, filter_grad_gpu, t_filter_grad_c->elem(), &err, nrms);
+            else if(tensor_dtype == TENSOR_DT_HALF)
+                is_valid = valid_vector_rms<fp16_t>(filter_grad_cpu, reinterpret_cast<fp16_t*>(filter_grad_gpu), t_filter_grad_c->elem(), &err, nrms);
+            if (is_valid)
                 std::cout << "Backward Convolution Weights Verifies on CPU "
                     "and GPU (" << err << ')'<< std::endl;
             else
@@ -834,6 +953,10 @@ static int conv_driver(int argc, char ** argv){
                     err << std::endl;
             delete[] filter_grad_gpu;
             delete[] filter_grad_cpu;
+            if(tensor_dtype == TENSOR_DT_HALF){
+                delete [] in_cpu;
+                delete [] out_cpu;
+            }
         }
 
         if (save_out) {
