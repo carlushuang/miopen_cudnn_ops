@@ -747,7 +747,7 @@ static int conv_driver(int argc, char ** argv){
     }
     gpu_dev->tensor_copy(t_filter, t_filter_c->mem, t_filter_c->bytes(), TENSOR_COPY_H2D);
 
-    if(is_bwd){
+    if(is_bwd || is_wrw){
         if (in_dy == "") {
             rand_float((dtype*)t_out_grad_c->mem, t_out_grad_c->elem());
         } else {
@@ -755,6 +755,11 @@ static int conv_driver(int argc, char ** argv){
                 rand_float((dtype*)t_out_grad_c->mem, t_out_grad_c->elem());
         }
         gpu_dev->tensor_copy(t_out_grad, t_out_grad_c->mem, t_out_grad_c->bytes(), TENSOR_COPY_H2D);
+    }
+
+    if(is_wrw){
+        rand_float((dtype*)t_in_grad_c->mem, t_in_grad_c->elem());
+        gpu_dev->tensor_copy(t_in_grad, t_in_grad_c->mem, t_in_grad_c->bytes(), TENSOR_COPY_H2D);
     }
 
     device_timer_t * dt = gpu_dev->device_timer_create();
@@ -917,12 +922,12 @@ static int conv_driver(int argc, char ** argv){
             float nrms= get_nrms("wrw", tensor_dtype);
             float *filter_grad_cpu = new float[t_filter_grad_c->elem()];
             float err{0.};
-            float *in_cpu    = (float*)t_in_c->mem;
+            float *in_cpu    = (float*)t_in_grad_c->mem;
             float *out_cpu   = (float*)t_out_grad_c->mem;
             if(tensor_dtype == TENSOR_DT_HALF){
-                in_cpu = new float[t_in_c->elem()];
+                in_cpu = new float[t_in_grad_c->elem()];
                 out_cpu = new float[t_out_grad_c->elem()];
-                buffer_cast_fp16_to_fp32(in_cpu, (fp16_t*)t_in_c->mem, t_in_c->elem());
+                buffer_cast_fp16_to_fp32(in_cpu, (fp16_t*)t_in_grad_c->mem, t_in_grad_c->elem());
                 buffer_cast_fp16_to_fp32(out_cpu, (fp16_t*)t_out_grad_c->mem, t_out_grad_c->elem());
             }
             if(layout == TENSOR_LAYOUT_NCHW)
