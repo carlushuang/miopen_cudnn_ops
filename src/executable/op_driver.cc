@@ -13,6 +13,7 @@
 
 #include <unistd.h>
 #include "half.hpp"
+#define NAIVE_CONV_THREADED
 #include "naive_conv.h"
 
 typedef struct {
@@ -1165,5 +1166,10 @@ int main(int argc, char ** argv){
 
     device_destroy(gpu_dev);
     device_destroy(cpu_dev);
+
+    int sleep_ms = env_get_int("SLEEP_MS", 0);
+    if(sleep_ms != 0)
+        usleep(1000 * sleep_ms);
+
     return rtn;
 }
