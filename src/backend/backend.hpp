@@ -159,6 +159,7 @@ struct convolution_desc_t{
     int input_h;
     int input_w;
     void * desc;    // cudnn have convDesc/filterDesc
+    void * desc_wrw;    // cudnn, wrw NHWC fp16 seems only support PSEUDO_HALF_CONFIG
 };
 
 #define MAX_POOLING_DIM 2

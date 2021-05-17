@@ -321,12 +321,35 @@ convolution_desc_t * device_cuda::convolution_desc_create(convolution_mode mode,
     conv_desc->input_h = input_h;
     conv_desc->input_w = input_w;
     conv_desc->desc = desc;
+    conv_desc->desc_wrw = nullptr;
+
+    /* cudnn NHWC need PSEUDO_HALF_CONFIG */
+    if(dt == TENSOR_DT_HALF){
+        // TODO: only valid in NHWC
+        cudnnConvolutionDescriptor_t desc_wrw;
+        CHECK_CUDNN(cudnnCreateConvolutionDescriptor(&desc_wrw));
+
+        CHECK_CUDNN(cudnnSetConvolution2dDescriptor(desc_wrw, padding[0], padding[1],
+				stride[0], stride[1], dilation[0], dilation[1],
+				to_cudnn_convolution_mode(mode), CUDNN_DATA_FLOAT));
+#ifndef OP_CUDNN_FP16_NO_TENSORCORE
+        if(dt == TENSOR_DT_HALF){
+            CHECK_CUDNN(cudnnSetConvolutionMathType(desc_wrw, CUDNN_TENSOR_OP_MATH));
+        }
+#endif
+
+        if(groups != 1)
+            CHECK_CUDNN(cudnnSetConvolutionGroupCount(desc_wrw, groups));
+        conv_desc->desc_wrw = desc_wrw;
+    }
 
     return conv_desc;
 }
 void device_cuda::convolution_desc_destroy(convolution_desc_t * conv_desc)
 {
     CHECK_CUDNN(cudnnDestroyConvolutionDescriptor((cudnnConvolutionDescriptor_t)conv_desc->desc));
+    if(conv_desc->desc_wrw)
+        CHECK_CUDNN(cudnnDestroyConvolutionDescriptor((cudnnConvolutionDescriptor_t)conv_desc->desc_wrw));
     delete conv_desc;
 }
 

@@ -118,7 +118,7 @@ void op_convolution_cudnn::tune_op(){
             to_cudnn_fwd_algo_name(perfs[0].algo)<<")"<<std::endl;
         for (int i = 0; i < returned_algos; ++i) {
             LOG_I()<<"    " << i << ": " << perfs[i].algo<< "(" <<to_cudnn_fwd_algo_name(perfs[i].algo)
-                 << ") - time: " << perfs[i].time << ", Memory: " << perfs[i].memory<<std::endl;
+                 << ") - time: " << perfs[i].time << ", Memory: " << perfs[i].memory<<", Status:"<<  cudnnGetErrorString(perfs[i].status)<<std::endl;
         }
 #endif
         fwd_algo = perfs[0].algo;
@@ -168,7 +168,7 @@ void op_convolution_cudnn::tune_op(){
             to_cudnn_bwd_data_algo_name(perfs_data[0].algo)<<")"<<std::endl;
         for (int i = 0; i < returned_algos; ++i) {
             LOG_I()<<"    " << i << ": " << perfs_data[i].algo<< "(" <<to_cudnn_bwd_data_algo_name(perfs_data[i].algo)
-                 << ") - time: " << perfs_data[i].time << ", Memory: " << perfs_data[i].memory<<std::endl;
+                 << ") - time: " << perfs_data[i].time << ", Memory: " << perfs_data[i].memory<<", Status:"<<  cudnnGetErrorString(perfs_data[i].status)<<std::endl;
         }
 #endif
         bwd_data_algo = perfs_data[0].algo;
@@ -193,6 +193,9 @@ void op_convolution_cudnn::tune_op(){
 
     if(!backward_filter_tuned){
         backward_filter_tuned = 1;
+        bool need_psudo_fp16_config = filter->data_type == TENSOR_DT_HALF && filter->layout == TENSOR_LAYOUT_NHWC;
+        if(need_psudo_fp16_config)
+            assert(conv_desc->desc_wrw);
 
         // find bwd filter algo
         cudnnConvolutionBwdFilterAlgoPerf_t perfs_filter[5];
@@ -200,7 +203,7 @@ void op_convolution_cudnn::tune_op(){
         CHECK_CUDNN(cudnnFindConvolutionBackwardFilterAlgorithm(dev_cuda->handle, 
             (const cudnnTensorDescriptor_t)input->desc,
             (const cudnnTensorDescriptor_t)output_grad->desc,
-            (const cudnnConvolutionDescriptor_t)conv_desc->desc,
+            need_psudo_fp16_config ? (const cudnnConvolutionDescriptor_t)conv_desc->desc_wrw : (const cudnnConvolutionDescriptor_t)conv_desc->desc,
             filter_desc,
             5, &returned_algos, perfs_filter));
 #ifdef OP_VERBOSE
@@ -208,7 +211,7 @@ void op_convolution_cudnn::tune_op(){
             to_cudnn_bwd_filter_algo_name(perfs_filter[0].algo)<<")"<<std::endl;
         for (int i = 0; i < returned_algos; ++i) {
             LOG_I()<<"    " << i << ": " << perfs_filter[i].algo<< "(" <<to_cudnn_bwd_filter_algo_name(perfs_filter[i].algo)
-                 << ") - time: " << perfs_filter[i].time << ", Memory: " << perfs_filter[i].memory<<std::endl;
+                 << ") - time: " << perfs_filter[i].time << ", Memory: " << perfs_filter[i].memory<<", Status:"<<  cudnnGetErrorString(perfs_filter[i].status)<< std::endl;
         }
 #endif
         bwd_filter_algo = perfs_filter[0].algo;
@@ -219,7 +222,7 @@ void op_convolution_cudnn::tune_op(){
             CHECK_CUDNN(cudnnGetConvolutionBackwardFilterWorkspaceSize(dev_cuda->handle,
                 (const cudnnTensorDescriptor_t)input->desc,
                 (const cudnnTensorDescriptor_t)output_grad->desc,
-                (const cudnnConvolutionDescriptor_t)conv_desc->desc,
+                need_psudo_fp16_config ? (const cudnnConvolutionDescriptor_t)conv_desc->desc_wrw : (const cudnnConvolutionDescriptor_t)conv_desc->desc,
                 filter_desc,
                 bwd_filter_algo, &bwd_filter_workspace_size));
             //bwd_filter_workspace_mem = bwd_filter_workspace_size?
@@ -287,11 +290,12 @@ void op_convolution_cudnn::backward_filter(){
     bwd_filter_workspace_mem = bwd_filter_workspace_size?
                                 dev->ws->get(bwd_filter_workspace_size, input_grad->data_type):
                                 nullptr;
+    bool need_psudo_fp16_config = filter->data_type == TENSOR_DT_HALF && filter->layout == TENSOR_LAYOUT_NHWC;
     CHECK_CUDNN(cudnnConvolutionBackwardFilter(dev_cuda->handle,
             &alpha,
             (const cudnnTensorDescriptor_t)input_grad->desc, input_grad->mem,
             (const cudnnTensorDescriptor_t)output_grad->desc, output_grad->mem,
-            (const cudnnConvolutionDescriptor_t)conv_desc->desc,
+            need_psudo_fp16_config ? (const cudnnConvolutionDescriptor_t)conv_desc->desc_wrw : (const cudnnConvolutionDescriptor_t)conv_desc->desc,
             bwd_filter_algo, bwd_filter_workspace_mem, bwd_filter_workspace_size,
             &beta,
             (const cudnnFilterDescriptor_t)filter_desc, filter_grad->mem));
@@ -457,7 +461,9 @@ void op_convolution_cudnn::print_bwd_time(const float kernel_average_time) {
 
 void op_convolution_cudnn::print_wrw_time(const float kernel_average_time) {
 	std::string algo_name = get_bwd_filter_name();
-	std::cout << "OpDriver Backward Weights Conv. Algorithm: " << algo_name << "." << std::endl;
+    bool need_psudo_fp16_config = filter->data_type == TENSOR_DT_HALF && filter->layout == TENSOR_LAYOUT_NHWC;
+	std::cout << "OpDriver Backward Weights Conv. Algorithm: " << algo_name << "." <<(need_psudo_fp16_config?"[PSUDO_FP16_CONFIG]":"")  << std::endl;
+    
 
 	printf("GPU Kernel Time Backward Weights Conv. Elapsed: %f ms (average)\n", kernel_average_time);
 	int in_n, in_c, in_h, in_w;
