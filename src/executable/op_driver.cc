@@ -737,6 +737,7 @@ static int conv_driver(int argc, char ** argv){
     op_conv_c->tune_op();
     op_conv_c->alloc_mem();
 
+#if 0
     if (in_x == "") {
         rand_float((dtype*)t_in_c->mem, t_in_c->elem(), -1, 1);
     } else {
@@ -767,10 +768,16 @@ static int conv_driver(int argc, char ** argv){
         rand_float((dtype*)t_in_grad_c->mem, t_in_grad_c->elem(), -1, 1);
         gpu_dev->tensor_copy(t_in_grad, t_in_grad_c->mem, t_in_grad_c->bytes(), TENSOR_COPY_H2D);
     }
+#endif
 
     device_timer_t * dt = gpu_dev->device_timer_create();
 
     if (is_fwd) {
+        rand_float((dtype*)t_in_c->mem, t_in_c->elem(), -1, 1);
+        rand_float((dtype*)t_filter_c->mem, t_filter_c->elem(), -1, 1);
+        gpu_dev->tensor_copy(t_in, t_in_c->mem, t_in_c->bytes(), TENSOR_COPY_H2D);
+        gpu_dev->tensor_copy(t_filter, t_filter_c->mem, t_filter_c->bytes(), TENSOR_COPY_H2D);
+
         for(int l=0;l<num_warmup;l++){
             op_conv->forward();
         }
@@ -841,6 +848,11 @@ static int conv_driver(int argc, char ** argv){
     }
 
     if (is_bwd) {
+        rand_float((dtype*)t_out_grad_c->mem, t_out_grad_c->elem(), -1, 1);
+        rand_float((dtype*)t_filter_c->mem, t_filter_c->elem(), -1, 1);
+
+        gpu_dev->tensor_copy(t_out_grad, t_out_grad_c->mem, t_out_grad_c->bytes(), TENSOR_COPY_H2D);
+        gpu_dev->tensor_copy(t_filter, t_filter_c->mem, t_filter_c->bytes(), TENSOR_COPY_H2D);
         for(int l=0;l<num_warmup;l++){
             op_conv->backward_data();
         }
@@ -910,6 +922,10 @@ static int conv_driver(int argc, char ** argv){
     }
 
     if (is_wrw) {
+        rand_float((dtype*)t_in_grad_c->mem, t_in_grad_c->elem(), -1, 1);
+        rand_float((dtype*)t_out_grad_c->mem, t_out_grad_c->elem(), -1, 1);
+        gpu_dev->tensor_copy(t_in_grad, t_in_grad_c->mem, t_in_grad_c->bytes(), TENSOR_COPY_H2D);
+        gpu_dev->tensor_copy(t_out_grad, t_out_grad_c->mem, t_out_grad_c->bytes(), TENSOR_COPY_H2D);
         for(int l=0;l<num_warmup;l++){
             op_conv->backward_filter();
         }
