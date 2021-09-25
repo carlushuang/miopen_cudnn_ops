@@ -112,7 +112,7 @@ static inline void naive_conv_fwd_nchw(const float *src, const float *filter,
 #ifdef NAIVE_CONV_THREADED
     auto conv_one_pixel = [&](size_t ig, size_t in, size_t ik, size_t ioh, size_t iow){
         size_t ic, is, ir, cur_h, cur_w, o_idx, i_idx, f_idx;
-        float value = .0f;
+        double value = .0f;
         o_idx = in * k * oh * ow + ig * k_per_group * oh * ow + ik * oh * ow + ioh * ow + iow;
         for (ic = 0; ic < c_per_group; ic++) {
             for (ir = 0; ir < fy; ir++) {
@@ -127,11 +127,11 @@ static inline void naive_conv_fwd_nchw(const float *src, const float *filter,
                             cur_h * w + cur_w;
                     f_idx = ig * k_per_group * c_per_group * fy * fx + ik * c_per_group * fy * fx + ic * fy * fx +
                             ir * fx + is;
-                    value += src[i_idx] * filter[f_idx];
+                    value += static_cast<double>(src[i_idx]) * static_cast<double>(filter[f_idx]);
                 }
             }
         }
-        dst[o_idx] = value;
+        dst[o_idx] = static_cast<float>(value);
     };
     naive_conv_blockwise_in_parallel_5d(conv_one_pixel, group, n, k_per_group, oh, ow);
 #else
@@ -143,7 +143,7 @@ static inline void naive_conv_fwd_nchw(const float *src, const float *filter,
                 for (ioh = 0; ioh < oh; ioh++) {
                     for (iow = 0; iow < ow; iow++) {
                         // sliding window for this filter
-                        float value = .0f;
+                        double value = .0f;
                         o_idx = in * k * oh * ow + ig * k_per_group * oh * ow + ik * oh * ow + ioh * ow + iow;
                         for (ic = 0; ic < c_per_group; ic++) {
                             for (ir = 0; ir < fy; ir++) {
@@ -158,11 +158,11 @@ static inline void naive_conv_fwd_nchw(const float *src, const float *filter,
                                             cur_h * w + cur_w;
                                     f_idx = ig * k_per_group * c_per_group * fy * fx + ik * c_per_group * fy * fx + ic * fy * fx +
                                             ir * fx + is;
-                                    value += src[i_idx] * filter[f_idx];
+                                    value += static_cast<double>(src[i_idx]) * static_cast<double>(filter[f_idx]);
                                 }
                             }
                         }
-                        dst[o_idx] = value;
+                        dst[o_idx] = static_cast<float>(value);
                     }
                 }
             }
@@ -186,7 +186,7 @@ static inline void naive_conv_bwd_nchw(float *src_grad, const float *filter,
     auto conv_one_pixel = [&](size_t ig, size_t in, size_t ic, size_t ih, size_t iw){
         size_t ik, is, ir;
         size_t cur_oh, cur_ow, o_idx, i_idx, f_idx;
-        float value = .0f;
+        double value = .0f;
         i_idx = in * c * h * w + ig * c_per_group * h * w + ic * h * w + ih * w + iw;
         for (ik = 0; ik < k_per_group; ik++) {
             for (ir = 0; ir < fy; ir++) {
@@ -211,11 +211,11 @@ static inline void naive_conv_bwd_nchw(float *src_grad, const float *filter,
                     f_idx = ig * k_per_group * c_per_group * fy * fx + ik * c_per_group * fy * fx + ic * fy * fx +
                             ir * fx + is;
 
-                    value += dst_grad[o_idx] * filter[f_idx];
+                    value += static_cast<double>(dst_grad[o_idx]) * static_cast<double>(filter[f_idx]);
                 }
             }
         }
-        src_grad[i_idx] = value;
+        src_grad[i_idx] = static_cast<float>(value);
     };
     // naive_conv_blockwise_in_parallel(conv_one_pixel, n, c, h, w);
     naive_conv_blockwise_in_parallel_5d(conv_one_pixel, group, n, c_per_group, h, w);
@@ -228,7 +228,7 @@ static inline void naive_conv_bwd_nchw(float *src_grad, const float *filter,
             for (ic = 0; ic < c_per_group; ic++) {
                 for (ih = 0; ih < h; ih++) {
                     for (iw = 0; iw < w; iw++) {
-                        float value = .0f;
+                        double value = .0f;
                         i_idx = in * c * h * w + ig * c_per_group * h * w + ic * h * w + ih * w + iw;
                         for (ik = 0; ik < k_per_group; ik++) {
                             for (ir = 0; ir < fy; ir++) {
@@ -253,11 +253,11 @@ static inline void naive_conv_bwd_nchw(float *src_grad, const float *filter,
                                     f_idx = ig * k_per_group * c_per_group * fy * fx + ik * c_per_group * fy * fx + ic * fy * fx +
                                             ir * fx + is;
 
-                                    value += dst_grad[o_idx] * filter[f_idx];
+                                    value += static_cast<double>(dst_grad[o_idx]) * static_cast<double>(filter[f_idx]);
                                 }
                             }
                         }
-                        src_grad[i_idx] = value;
+                        src_grad[i_idx] = static_cast<float>(value);
                     }
                 }
             }
@@ -281,7 +281,7 @@ static inline void naive_conv_wrw_nchw(const float *src, float *filter_grad,
     auto conv_one_pixel = [&](size_t ig, size_t ik, size_t ic, size_t ir, size_t is){
         size_t in, ioh, iow;
         size_t cur_h, cur_w, o_idx, i_idx, f_idx;
-        float value = .0f;
+        double value = .0f;
         f_idx = ig * k_per_group * c_per_group * fy * fx + ik * c_per_group * fy * fx + ic * fy * fx + ir * fx + is;
         for (in = 0; in < n; in++) {
             for (ioh = 0; ioh < oh; ioh++) {
@@ -296,11 +296,11 @@ static inline void naive_conv_wrw_nchw(const float *src, float *filter_grad,
                             cur_h * w + cur_w;
                     o_idx = in * k * oh * ow + ig * k_per_group * oh * ow + ik * oh * ow +
                             ioh * ow + iow;
-                    value += src[i_idx] * dst_grad[o_idx];
+                    value += static_cast<double>(src[i_idx]) * static_cast<double>(dst_grad[o_idx]);
                 }
             }
         }
-        filter_grad[f_idx] = value;
+        filter_grad[f_idx] = static_cast<float>(value);
     };
     // naive_conv_blockwise_in_parallel(conv_one_pixel, k, c, fy, fx);
     naive_conv_blockwise_in_parallel_5d(conv_one_pixel, group, k_per_group, c_per_group, fy, fx);
@@ -313,7 +313,7 @@ static inline void naive_conv_wrw_nchw(const float *src, float *filter_grad,
             for (ic = 0; ic < c_per_group; ic++) {
                 for (ir = 0; ir < fy; ir++) {
                     for (is = 0; is < fx; is++) {
-                        float value = .0f;
+                        double value = .0f;
                         f_idx = ig * k_per_group * c_per_group * fy * fx + ik * c_per_group * fy * fx + ic * fy * fx + ir * fx + is;
                         for (in = 0; in < n; in++) {
                             for (ioh = 0; ioh < oh; ioh++) {
@@ -328,11 +328,11 @@ static inline void naive_conv_wrw_nchw(const float *src, float *filter_grad,
                                             cur_h * w + cur_w;
                                     o_idx = in * k * oh * ow + ig * k_per_group * oh * ow + ik * oh * ow +
                                             ioh * ow + iow;
-                                    value += src[i_idx] * dst_grad[o_idx];
+                                    value += static_cast<double>(src[i_idx]) * static_cast<double>(dst_grad[o_idx]);
                                 }
                             }
                         }
-                        filter_grad[f_idx] = value;
+                        filter_grad[f_idx] = static_cast<float>(value);
                     }
                 }
             }
@@ -355,7 +355,7 @@ static inline void naive_conv_fwd_ncdhw(const float *src, const float *filter, f
 #ifdef NAIVE_CONV_THREADED
     auto conv_one_pixel = [&](size_t ig, size_t in, size_t ik, size_t iod, size_t ioh, size_t iow){
         size_t ic, iz, is, ir, cur_d, cur_h, cur_w, o_idx, i_idx, f_idx;
-        float value = .0f;
+        double value = .0f;
         o_idx = in * k * od * oh * ow + ig * k_per_group * od * oh * ow + ik * od * oh * ow + iod * oh * ow + ioh * ow + iow;
         for (ic = 0; ic < c_per_group; ic++) {
             for (iz = 0; iz < fz; iz++) {
@@ -372,12 +372,12 @@ static inline void naive_conv_fwd_ncdhw(const float *src, const float *filter, f
                             continue;
                         i_idx = in * c * d * h * w + ig * c_per_group * d * h * w + ic * d * h * w + cur_d * h * w + cur_h * w + cur_w;
                         f_idx = ig * k_per_group * c_per_group * fz * fy * fx + ik * c_per_group * fz * fy * fx + ic * fz * fy * fx + iz * fy * fx + ir * fx + is;
-                        value += src[i_idx] * filter[f_idx];
+                        value += static_cast<double>(src[i_idx]) * static_cast<double>(filter[f_idx]);
                     }
                 }
             }
         }
-        dst[o_idx] = value;
+        dst[o_idx] = static_cast<float>(value);
     };
     naive_conv_blockwise_in_parallel_6d(conv_one_pixel, group, n, k_per_group, od, oh, ow);
 #else
@@ -390,7 +390,7 @@ static inline void naive_conv_fwd_ncdhw(const float *src, const float *filter, f
                     for (ioh = 0; ioh < oh; ioh++) {
                         for (iow = 0; iow < ow; iow++) {
                             // sliding window for this filter
-                            float value = .0f;
+                            double value = .0f;
                             o_idx = in * k * od * oh * ow + ig * k_per_group * od * oh * ow + ik * od * oh * ow + iod * oh * ow + ioh * ow + iow;
                             for (ic = 0; ic < c_per_group; ic++) {
                                 for (iz = 0; iz < fz; iz++) {
@@ -407,12 +407,12 @@ static inline void naive_conv_fwd_ncdhw(const float *src, const float *filter, f
                                                 continue;
                                             i_idx = in * c * d * h * w + ig * c_per_group * d * h * w + ic * d * h * w + cur_d * h * w + cur_h * w + cur_w;
                                             f_idx = ig * k_per_group * c_per_group * fz * fy * fx + ik * c_per_group * fz * fy * fx + ic * fz * fy * fx + iz * fy * fx + ir * fx + is;
-                                            value += src[i_idx] * filter[f_idx];
+                                            value += static_cast<double>(src[i_idx]) * static_cast<double>(filter[f_idx]);
                                         }
                                     }
                                 }
                             }
-                            dst[o_idx] = value;
+                            dst[o_idx] = static_cast<float>(value);
                         }
                     }
                 }
@@ -436,7 +436,7 @@ static inline void naive_conv_bwd_ncdhw(float *src_grad, const float *filter, co
     auto conv_one_pixel = [&](size_t ig, size_t in, size_t ic, size_t id, size_t ih, size_t iw){
         size_t ik, iz, is, ir;
         size_t cur_od, cur_oh, cur_ow, o_idx, i_idx, f_idx;
-        float value = .0f;
+        double value = .0f;
         i_idx = in * c * d * h * w + ig * c_per_group * d * h * w + ic * d * h * w + id * h * w + ih * w + iw;
         for (ik = 0; ik < k_per_group; ik++) {
             for (iz = 0; iz < fz; iz++) {
@@ -466,12 +466,12 @@ static inline void naive_conv_bwd_ncdhw(float *src_grad, const float *filter, co
                         f_idx = ig * k_per_group * c_per_group * fz * fy * fx + ik * c_per_group * fz * fy * fx + ic * fz * fy * fx + iz * fy * fx +
                                 ir * fx + is;
 
-                        value += dst_grad[o_idx] * filter[f_idx];
+                        value += static_cast<double>(dst_grad[o_idx]) * static_cast<double>(filter[f_idx]);
                     }
                 }
             }
         }
-        src_grad[i_idx] = value;
+        src_grad[i_idx] = static_cast<float>(value);
     };
     naive_conv_blockwise_in_parallel_6d(conv_one_pixel, group, n, c_per_group, d, h, w);
 #else
@@ -484,7 +484,7 @@ static inline void naive_conv_bwd_ncdhw(float *src_grad, const float *filter, co
                 for (id = 0; id < d; id++) {
                     for (ih = 0; ih < h; ih++) {
                         for (iw = 0; iw < w; iw++) {
-                            float value = .0f;
+                            double value = .0f;
                             i_idx = in * c * d *h * w + ig * c_per_group * d *h * w + ic * d *h * w + id * h * w + ih * w + iw;
                             for (ik = 0; ik < k_per_group; ik++) {
                                 for (iz = 0; iz < fz; iz++) {
@@ -514,12 +514,12 @@ static inline void naive_conv_bwd_ncdhw(float *src_grad, const float *filter, co
                                             f_idx = ig * k_per_group * c_per_group * fz * fy * fx + ik * c_per_group * fz * fy * fx + ic * fz * fy * fx + iz * fy * fx +
                                                     ir * fx + is;
 
-                                            value += dst_grad[o_idx] * filter[f_idx];
+                                            value += static_cast<double>(dst_grad[o_idx]) * static_cast<double>(filter[f_idx]);
                                         }
                                     }
                                 }
                             }
-                            src_grad[i_idx] = value;
+                            src_grad[i_idx] = static_cast<float>(value);
                         }
                     }
                 }
@@ -543,7 +543,7 @@ static inline void naive_conv_wrw_ncdhw(const float *src, float *filter_grad, co
     auto conv_one_pixel = [&](size_t ig, size_t ik, size_t ic, size_t iz, size_t ir, size_t is){
         size_t in, iod, ioh, iow;
         size_t cur_d, cur_h, cur_w, o_idx, i_idx, f_idx;
-        float value = .0f;
+        double value = .0f;
         f_idx = ig * k_per_group * c_per_group * fz * fy * fx + ik * c_per_group * fz * fy * fx + ic * fz * fy * fx + iz * fy * fx + ir * fx + is;
         for (in = 0; in < n; in++) {
             for (iod = 0; iod < od; iod++) {
@@ -562,12 +562,12 @@ static inline void naive_conv_wrw_ncdhw(const float *src, float *filter_grad, co
                                 cur_h * w + cur_w;
                         o_idx = in * k * od * oh * ow + ig * k_per_group * od * oh * ow + ik * od * oh * ow + iod * oh * ow +
                                 ioh * ow + iow;
-                        value += src[i_idx] * dst_grad[o_idx];
+                        value += static_cast<double>(src[i_idx]) * static_cast<double>(dst_grad[o_idx]);
                     }
                 }
             }
         }
-        filter_grad[f_idx] = value;
+        filter_grad[f_idx] = static_cast<float>(value);
     };
     naive_conv_blockwise_in_parallel_6d(conv_one_pixel, group, k_per_group, c_per_group, fz, fy, fx);
 #else
@@ -580,7 +580,7 @@ static inline void naive_conv_wrw_ncdhw(const float *src, float *filter_grad, co
                 for (iz = 0; iz < fz; iz++) {
                     for (ir = 0; ir < fy; ir++) {
                         for (is = 0; is < fx; is++) {
-                            float value = .0f;
+                            double value = .0f;
                             f_idx = ig * k_per_group * c_per_group * fz * fy * fx + ik * c_per_group * fz * fy * fx + ic * fz * fy * fx + iz * fy * fx + ir * fx + is;
                             for (in = 0; in < n; in++) {
                                 for (iod = 0; iod < od; iod++) {
@@ -599,12 +599,12 @@ static inline void naive_conv_wrw_ncdhw(const float *src, float *filter_grad, co
                                                     cur_h * w + cur_w;
                                             o_idx = in * k * od * oh * ow + ig * k_per_group * od * oh * ow + ik * od * oh * ow + iod * oh * ow +
                                                     ioh * ow + iow;
-                                            value += src[i_idx] * dst_grad[o_idx];
+                                            value += static_cast<double>(src[i_idx]) * static_cast<double>(dst_grad[o_idx]);
                                         }
                                     }
                                 }
                             }
-                            filter_grad[f_idx] = value;
+                            filter_grad[f_idx] = static_cast<float>(value);
                         }
                     }
                 }
@@ -628,7 +628,7 @@ static inline void naive_conv_fwd_nhwc(const float *src, const float *filter,
 #ifdef NAIVE_CONV_THREADED
     auto conv_one_pixel = [&](size_t ig, size_t in, size_t ioh, size_t iow, size_t ik){
         size_t ic, is, ir, cur_h, cur_w, o_idx, i_idx, f_idx;
-        float value = .0f;
+        double value = .0f;
         o_idx = in * oh * ow * k + ioh * ow * k + iow * k + ig * k_per_group + ik;
         for (ir = 0; ir < fy; ir++) {
             cur_h = sy * ioh - py + dy * ir;
@@ -642,11 +642,11 @@ static inline void naive_conv_fwd_nhwc(const float *src, const float *filter,
                     i_idx = in * h * w * c + cur_h * w * c + cur_w * c + ig * c_per_group + ic;
                     f_idx = ig * k_per_group * fy * fx * c_per_group + ik * fy * fx * c_per_group +
                             ir * fx * c_per_group + is * c_per_group + ic;
-                    value += src[i_idx] * filter[f_idx];
+                    value += static_cast<double>(src[i_idx]) * static_cast<double>(filter[f_idx]);
                 }
             }
         }
-        dst[o_idx] = value;
+        dst[o_idx] = static_cast<float>(value);
     };
     naive_conv_blockwise_in_parallel_5d(conv_one_pixel, group, n, oh, ow, k_per_group);
 #else
@@ -658,7 +658,7 @@ static inline void naive_conv_fwd_nhwc(const float *src, const float *filter,
                 for (iow = 0; iow < ow; iow++) {
                     for (ik = 0; ik < k_per_group; ik++) {
                         // sliding window for this filter
-                        float value = .0f;
+                        double value = .0f;
                         o_idx = in * oh * ow * k + + ioh * ow * k_per_group + iow * k_per_group + ig * k_per_group + ik;
                         for (ir = 0; ir < fy; ir++) {
                             cur_h = sy * ioh - py + dy * ir;
@@ -672,11 +672,11 @@ static inline void naive_conv_fwd_nhwc(const float *src, const float *filter,
                                     i_idx = in * h * w * c + cur_h * w * c + cur_w * c + ig * c_per_group + ic;
                                     f_idx = ig * k_per_group * fy * fx * c_per_group + ik * fy * fx * c_per_group +
                                                             ir * fx * c_per_group + is * c_per_group + ic;
-                                    value += src[i_idx] * filter[f_idx];
+                                    value += static_cast<double>(src[i_idx]) * static_cast<double>(filter[f_idx]);
                                 }
                             }
                         }
-                        dst[o_idx] = value;
+                        dst[o_idx] = static_cast<float>(value);
                     }
                 }
             }
@@ -700,7 +700,7 @@ static inline void naive_conv_bwd_nhwc(float *src_grad, const float *filter,
     auto conv_one_pixel = [&](size_t ig, size_t in, size_t ih, size_t iw, size_t ic){
         size_t ik, is, ir;
         size_t cur_oh, cur_ow, o_idx, i_idx, f_idx;
-        float value = .0f;
+        double value = .0f;
         i_idx = in * h * w * c + ih * w * c + iw * c + ig * c_per_group + ic;
         for (ir = 0; ir < fy; ir++) {
             cur_oh = ih + py - dy * ir; // cur_h = sy*ioh-py+dy*ir;
@@ -719,11 +719,11 @@ static inline void naive_conv_bwd_nhwc(float *src_grad, const float *filter,
                 for (ik = 0; ik < k_per_group; ik++) {
                     o_idx = in * oh * ow * k + cur_oh * ow * k + cur_ow * k + ig * k_per_group + ik;
                     f_idx = ig * k_per_group * fy * fx * c_per_group + ik * fy * fx * c_per_group + ir * fx * c_per_group + is * c_per_group + ic;
-                    value += dst_grad[o_idx] * filter[f_idx];
+                    value += static_cast<double>(dst_grad[o_idx]) * static_cast<double>(filter[f_idx]);
                 }
             }
         }
-        src_grad[i_idx] = value;
+        src_grad[i_idx] = static_cast<float>(value);
     };
     naive_conv_blockwise_in_parallel_5d(conv_one_pixel, group, n, h, w, c_per_group);
 #else
@@ -735,7 +735,7 @@ static inline void naive_conv_bwd_nhwc(float *src_grad, const float *filter,
             for (ih = 0; ih < h; ih++) {
                 for (iw = 0; iw < w; iw++) {
                     for (ic = 0; ic < c_per_group; ic++) {
-                        float value = .0f;
+                        double value = .0f;
                         i_idx = in * h * w * c + ih * w * c + iw * c + ig * c_per_group + ic;
                         for (ir = 0; ir < fy; ir++) {
                             cur_oh = ih + py - dy * ir; // cur_h = sy*ioh-py+dy*ir;
@@ -754,11 +754,11 @@ static inline void naive_conv_bwd_nhwc(float *src_grad, const float *filter,
                                 for (ik = 0; ik < k_per_group; ik++) {
                                     o_idx = in * oh * ow * k + cur_oh * ow * k + cur_ow * k + ig * k_per_group + ik;
                                     f_idx = ig * k_per_group * fy * fx * c_per_group + ik * fy * fx * c_per_group + ir * fx * c_per_group + is * c_per_group + ic;
-                                    value += dst_grad[o_idx] * filter[f_idx];
+                                    value += static_cast<double>(dst_grad[o_idx]) * static_cast<double>(filter[f_idx]);
                                 }
                             }
                         }
-                        src_grad[i_idx] = value;
+                        src_grad[i_idx] = static_cast<float>(value);
                     }
                 }
             }
@@ -782,7 +782,7 @@ static inline void naive_conv_wrw_nhwc(const float *src, float *filter_grad,
     auto conv_one_pixel = [&](size_t ig, size_t ik, size_t ir, size_t is, size_t ic){
         size_t in, ioh, iow;
         size_t cur_h, cur_w, o_idx, i_idx, f_idx;
-        float value = .0f;
+        double value = .0f;
         f_idx = ig * k_per_group * fy * fx * c_per_group + ik * fy * fx * c_per_group + ir * fx * c_per_group + is * c_per_group + ic;
         for (in = 0; in < n; in++) {
             for (ioh = 0; ioh < oh; ioh++) {
@@ -795,11 +795,11 @@ static inline void naive_conv_wrw_nhwc(const float *src, float *filter_grad,
                         continue;
                     i_idx = in * h * w * c + cur_h * w * c + cur_w * c + ig * c_per_group + ic;
                     o_idx = in * oh * ow * k + ioh * ow * k + iow * k + ig * k_per_group + ik;
-                    value += src[i_idx] * dst_grad[o_idx];
+                    value += static_cast<double>(src[i_idx]) * static_cast<double>(dst_grad[o_idx]);
                 }
             }
         }
-        filter_grad[f_idx] = value;
+        filter_grad[f_idx] = static_cast<float>(value);
     };
     naive_conv_blockwise_in_parallel_5d(conv_one_pixel, group, k_per_group, fy, fx, c_per_group);
 #else
@@ -810,7 +810,7 @@ static inline void naive_conv_wrw_nhwc(const float *src, float *filter_grad,
             for (ir = 0; ir < fy; ir++) {
                 for (is = 0; is < fx; is++) {
                     for (ic = 0; ic < c_per_group; ic++) {
-                        float value = .0f;
+                        double value = .0f;
                         f_idx = ig * k_per_group * fy * fx * c_per_group + ik * fy * fx * c_per_group + ir * fx * c_per_group + is * c_per_group + ic;
                         for (in = 0; in < n; in++) {
                             for (ioh = 0; ioh < oh; ioh++) {
@@ -823,11 +823,11 @@ static inline void naive_conv_wrw_nhwc(const float *src, float *filter_grad,
                                         continue;
                                     i_idx = in * h * w * c + cur_h * w * c + cur_w * c + ig * c_per_group + ic;
                                     o_idx = in * oh * ow * k + ioh * ow * k + iow * k + ig * k_per_group + ik;
-                                    value += src[i_idx] * dst_grad[o_idx];
+                                    value += static_cast<double>(src[i_idx]) * static_cast<double>(dst_grad[o_idx]);
                                 }
                             }
                         }
-                        filter_grad[f_idx] = value;
+                        filter_grad[f_idx] = static_cast<float>(value);
                     }
                 }
             }
@@ -849,7 +849,7 @@ static inline void naive_conv_fwd_ndhwc(const float *src, const float *filter, f
 #ifdef NAIVE_CONV_THREADED
     auto conv_one_pixel = [&](size_t ig, size_t in, size_t iod, size_t ioh, size_t iow, size_t ik){
         size_t ic, iz, is, ir, cur_d, cur_h, cur_w, o_idx, i_idx, f_idx;
-        float value = .0f;
+        double value = .0f;
         o_idx = in * od * oh * ow * k + iod * oh * ow * k + ioh * ow * k + iow * k + ig * k_per_group + ik;
         for (iz = 0; iz < fz; iz++) {
             cur_d = sz * iod - pz + dz * iz;
@@ -866,12 +866,12 @@ static inline void naive_conv_fwd_ndhwc(const float *src, const float *filter, f
                     for (ic = 0; ic < c_per_group; ic++) {
                         i_idx = in * d * h * w * c + cur_d * h * w * c + cur_h * w * c + cur_w * c + ig * c_per_group + ic;
                         f_idx = ig * k_per_group * fz * fy * fx * c_per_group + ik * fz * fy * fx * c_per_group + iz * fy * fx * c_per_group + ir * fx * c_per_group + is * c_per_group + ic;
-                        value += src[i_idx] * filter[f_idx];
+                        value += static_cast<double>(src[i_idx]) * static_cast<double>(filter[f_idx]);
                     }
                 }
             }
         }
-        dst[o_idx] = value;
+        dst[o_idx] = static_cast<float>(value);
     };
     naive_conv_blockwise_in_parallel_6d(conv_one_pixel, group, n, od, oh, ow, k_per_group);
 #else
@@ -884,7 +884,7 @@ static inline void naive_conv_fwd_ndhwc(const float *src, const float *filter, f
                     for (iow = 0; iow < ow; iow++) {
                         for (ik = 0; ik < k_per_group; ik++) {
                             // sliding window for this filter
-                            float value = .0f;
+                            double value = .0f;
                             o_idx = in * od * oh * ow * k + iod * oh * ow * k + ioh * ow * k + iow * k + ig * k_per_group + ik;
                             for (iz = 0; iz < fz; iz++) {
                                 cur_d = sz * iod - pz + dz * iz;
@@ -901,12 +901,12 @@ static inline void naive_conv_fwd_ndhwc(const float *src, const float *filter, f
                                         for (ic = 0; ic < c_per_group; ic++) {
                                             i_idx = in * d * h * w * c + cur_d * h * w * c + cur_h * w * c + cur_w * c + ig * c_per_group + ic;
                                             f_idx = ig * k_per_group * fz * fy * fx * c_per_group + ik * fz * fy * fx * c_per_group + iz * fy * fx * c_per_group + ir * fx * c_per_group + is * c_per_group + ic;
-                                            value += src[i_idx] * filter[f_idx];
+                                            value += static_cast<double>(src[i_idx]) * static_cast<double>(filter[f_idx]);
                                         }
                                     }
                                 }
                             }
-                            dst[o_idx] = value;
+                            dst[o_idx] = static_cast<float>(value);
                         }
                     }
                 }
@@ -930,7 +930,7 @@ static inline void naive_conv_bwd_ndhwc(float *src_grad, const float *filter, co
     auto conv_one_pixel = [&](size_t ig, size_t in, size_t id, size_t ih, size_t iw, size_t ic){
         size_t ik, iz, is, ir;
         size_t cur_od, cur_oh, cur_ow, o_idx, i_idx, f_idx;
-        float value = .0f;
+        double value = .0f;
         i_idx = in * d * h * w * c + id * h * w * c + ih * w * c + iw * c + ig * c_per_group + ic;
         for (iz = 0; iz < fz; iz++) {
             cur_od = id + pz - dz * iz;
@@ -957,12 +957,12 @@ static inline void naive_conv_bwd_ndhwc(float *src_grad, const float *filter, co
                         o_idx = in * od * oh * ow * k + cur_od * oh * ow * k + cur_oh * ow * k + cur_ow * k + ig * k_per_group + ik;
                         f_idx = ig * k_per_group * fz * fy * fx * c_per_group + ik * fz * fy * fx * c_per_group + iz * fy * fx * c_per_group + ir * fx * c_per_group + is * c_per_group + ic;
 
-                        value += dst_grad[o_idx] * filter[f_idx];
+                        value += static_cast<double>(dst_grad[o_idx]) * static_cast<double>(filter[f_idx]);
                     }
                 }
             }
         }
-        src_grad[i_idx] = value;
+        src_grad[i_idx] = static_cast<float>(value);
     };
     naive_conv_blockwise_in_parallel_6d(conv_one_pixel, group, n, d, h, w, c_per_group);
 #else
@@ -975,7 +975,7 @@ static inline void naive_conv_bwd_ndhwc(float *src_grad, const float *filter, co
                 for (ih = 0; ih < h; ih++) {
                     for (iw = 0; iw < w; iw++) {
                         for (ic = 0; ic < c_per_group; ic++) {
-                            float value = .0f;
+                            double value = .0f;
                             i_idx = in * d * h * w * c + id * h * w * c + ih * w * c + iw * c + ig * c_per_group + ic;
                             for (iz = 0; iz < fz; iz++) {
                                 cur_od = id + pz - dz * iz;
@@ -1001,12 +1001,12 @@ static inline void naive_conv_bwd_ndhwc(float *src_grad, const float *filter, co
                                         for (ik = 0; ik < k_per_group; ik++) {
                                             o_idx = in * od * oh * ow * k + cur_od * oh * ow * k + cur_oh * ow * k + cur_ow * k + ig * k_per_group + ik;
                                             f_idx = ig * k_per_group * fz * fy * fx * c_per_group + ik * fz * fy * fx * c_per_group + iz * fy * fx * c_per_group + ir * fx * c_per_group + is * c_per_group + ic;
-                                            value += dst_grad[o_idx] * filter[f_idx];
+                                            value += static_cast<double>(dst_grad[o_idx]) * static_cast<double>(filter[f_idx]);
                                         }
                                     }
                                 }
                             }
-                            src_grad[i_idx] = value;
+                            src_grad[i_idx] = static_cast<float>(value);
                         }
                     }
                 }
@@ -1030,7 +1030,7 @@ static inline void naive_conv_wrw_ndhwc(const float *src, float *filter_grad, co
     auto conv_one_pixel = [&](size_t ig, size_t ik, size_t iz, size_t ir, size_t is, size_t ic){
         size_t in, iod, ioh, iow;
         size_t cur_d, cur_h, cur_w, o_idx, i_idx, f_idx;
-        float value = .0f;
+        double value = .0f;
         f_idx = ig * k_per_group * fz * fy * fx * c_per_group + ik * fz * fy * fx * c_per_group + iz * fy * fx * c_per_group + ir * fx * c_per_group + is * c_per_group + ic;
         for (in = 0; in < n; in++) {
             for (iod = 0; iod < od; iod++) {
@@ -1047,12 +1047,12 @@ static inline void naive_conv_wrw_ndhwc(const float *src, float *filter_grad, co
                             continue;
                         i_idx = in * d * h * w * c + cur_d * h * w * c + cur_h * w * c + cur_w * c + ig * c_per_group + ic;
                         o_idx = in * od * oh * ow * k + iod * oh * ow * k + ioh * ow * k + iow * k + ig * k_per_group + ik;
-                        value += src[i_idx] * dst_grad[o_idx];
+                        value += static_cast<double>(src[i_idx]) * static_cast<double>(dst_grad[o_idx]);
                     }
                 }
             }
         }
-        filter_grad[f_idx] = value;
+        filter_grad[f_idx] = static_cast<float>(value);
     };
     naive_conv_blockwise_in_parallel_6d(conv_one_pixel, group, k_per_group, fz, fy, fx, c_per_group);
 #else
@@ -1065,7 +1065,7 @@ static inline void naive_conv_wrw_ndhwc(const float *src, float *filter_grad, co
                 for (ir = 0; ir < fy; ir++) {
                     for (is = 0; is < fx; is++) {
                         for (ic = 0; ic < c_per_group; ic++) {
-                            float value = .0f;
+                            double value = .0f;
                             f_idx = ig * k_per_group * fz * fy * fx * c_per_group + ik * fz * fy * fx * c_per_group + iz * fy * fx * c_per_group + ir * fx * c_per_group + is * c_per_group + ic;
                             for (in = 0; in < n; in++) {
                                 for (iod = 0; iod < od; iod++) {
@@ -1082,12 +1082,12 @@ static inline void naive_conv_wrw_ndhwc(const float *src, float *filter_grad, co
                                                 continue;
                                             i_idx = in * d * h * w * c + cur_d * h * w * c + cur_h * w * c + cur_w * c + ig * c_per_group + ic;
                                             o_idx = in * od * oh * ow * k + iod * oh * ow * k + ioh * ow * k + iow * k + ig * k_per_group + ik;
-                                            value += src[i_idx] * dst_grad[o_idx];
+                                            value += static_cast<double>(src[i_idx]) * static_cast<double>(dst_grad[o_idx]);
                                         }
                                     }
                                 }
                             }
-                            filter_grad[f_idx] = value;
+                            filter_grad[f_idx] = static_cast<float>(value);
                         }
                     }
                 }

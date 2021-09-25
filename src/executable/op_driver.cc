@@ -10,6 +10,8 @@
 #include <unordered_map>
 #include <random>
 #include <fstream>
+#include <limits>
+#include <algorithm>
 
 #include <unistd.h>
 #include "half.hpp"
@@ -24,6 +26,7 @@ using fp32_t = float;
 using fp16_t = half_float::half;
 using bf16_t = _bf16_t;
 
+#define USE_MIOPEN_RMS
 
 static inline int conv_size(int in_size, int pad, int dilation, int ksize, int stride){
     return (in_size + 2*pad- dilation*(ksize-1) -1)/stride + 1;
@@ -57,6 +60,25 @@ static inline double get_nrms(std::string direction, tensor_data_type data_type)
 
 template<typename T>
 static int valid_vector_rms(float *lhs, T *rhs, size_t num, float *rms_error, float threshold=1e-6){
+#ifdef USE_MIOPEN_RMS
+    double square_difference = 0;
+    double mag1 = -9999;
+    double mag2 = -9999;
+    for(size_t i = 0; i < num; i++){
+        square_difference += (lhs[i] - rhs[i]) * (lhs[i] - rhs[i]);
+        if(std::abs(lhs[i]) > mag1)
+            mag1 = std::abs(lhs[i]);
+        if(std::abs(rhs[i]) > mag2)
+            mag2 = std::abs(rhs[i]);
+    }
+
+    double mag = std::max({std::fabs(mag1), std::fabs(mag2), std::numeric_limits<double>::min()});
+
+    double rms = std::sqrt(square_difference) / (std::sqrt(num) * mag);
+    if(rms_error)
+		*rms_error = rms;
+    return rms < threshold? 1:0;
+#else
     size_t i;
     double d=0;
     double sx=0;
@@ -73,6 +95,7 @@ static int valid_vector_rms(float *lhs, T *rhs, size_t num, float *rms_error, fl
     // printf("(%.12f)",rms);
     return rms < threshold? 1:0;
     //return 0;
+#endif
 }
 
 #define EF_PRT
@@ -605,9 +628,9 @@ static int conv_driver(int argc, char ** argv){
     int bias = parser.get_arg_int("b");
     std::string cmode = parser.get_arg("m");
     int fmode = parser.get_arg_int("F");
-    int is_fwd = (fmode == 0 || fmode == 1 || fmode == 3 || fmode == 5) ? 1 : 0;
-    int is_bwd = (fmode == 0 || fmode == 2 || fmode == 3 || fmode == 6) ? 1 : 0;
-    int is_wrw = (fmode == 0 || fmode == 4 || fmode == 5 || fmode == 6) ? 1 : 0;
+    int is_fwd = (fmode == 0 || fmode & 1) ? 1 : 0;
+    int is_bwd = (fmode == 0 || fmode & 2) ? 1 : 0;
+    int is_wrw = (fmode == 0 || fmode & 4) ? 1 : 0;
     int time_enabled = parser.get_arg_int("t");
     int num_iterations = parser.get_arg_int("i");
     int is_verify = parser.get_arg_int("V");

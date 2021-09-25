@@ -1,5 +1,7 @@
 #include "operator.hpp"
 
+#define SELECT_CUDNN_ALGORITHM
+
 op_convolution_cudnn::op_convolution_cudnn(void * desc) : op_convolution(desc){
     fwd_algo_valid = true;
     bwd_filter_algo_valid = true;
@@ -121,9 +123,23 @@ void op_convolution_cudnn::tune_op(){
                  << ") - time: " << perfs[i].time << ", Memory: " << perfs[i].memory<<", Status:"<<  cudnnGetErrorString(perfs[i].status)<<std::endl;
         }
 #endif
+#ifdef SELECT_CUDNN_ALGORITHM
+        int selected_algo_idx = -1;
+        for(int i=0; i < returned_algos; i++){
+            if(perfs[i].algo == CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM){
+                selected_algo_idx = i;
+                break;
+            }
+        }
+        assert(selected_algo_idx != -1);
+        fwd_algo = perfs[selected_algo_idx].algo;
+        if(perfs[selected_algo_idx].status != CUDNN_STATUS_SUCCESS)
+            fwd_algo_valid = false;
+#else
         fwd_algo = perfs[0].algo;
         if(perfs[0].status != CUDNN_STATUS_SUCCESS)
             fwd_algo_valid = false;
+#endif
 #else
         CHECK_CUDNN(cudnnGetConvolutionForwardAlgorithm(dev_cuda->handle,
             (const cudnnTensorDescriptor_t)input->desc,
@@ -171,10 +187,23 @@ void op_convolution_cudnn::tune_op(){
                  << ") - time: " << perfs_data[i].time << ", Memory: " << perfs_data[i].memory<<", Status:"<<  cudnnGetErrorString(perfs_data[i].status)<<std::endl;
         }
 #endif
+#ifdef SELECT_CUDNN_ALGORITHM
+        int selected_algo_idx = -1;
+        for(int i=0; i < returned_algos; i++){
+            if(perfs_data[i].algo == CUDNN_CONVOLUTION_BWD_DATA_ALGO_1){
+                selected_algo_idx = i;
+                break;
+            }
+        }
+        assert(selected_algo_idx != -1);
+        bwd_data_algo = perfs_data[selected_algo_idx].algo;
+        if(perfs_data[selected_algo_idx].status != CUDNN_STATUS_SUCCESS)
+            bwd_data_algo_valid = false;
+#else
         bwd_data_algo = perfs_data[0].algo;
         if(perfs_data[0].status != CUDNN_STATUS_SUCCESS)
             bwd_data_algo_valid = false;
-
+#endif
         if(bwd_data_algo_valid){
             CHECK_CUDNN(cudnnGetConvolutionBackwardDataWorkspaceSize(dev_cuda->handle,
                 filter_desc,
@@ -214,10 +243,23 @@ void op_convolution_cudnn::tune_op(){
                  << ") - time: " << perfs_filter[i].time << ", Memory: " << perfs_filter[i].memory<<", Status:"<<  cudnnGetErrorString(perfs_filter[i].status)<< std::endl;
         }
 #endif
+#ifdef SELECT_CUDNN_ALGORITHM
+        int selected_algo_idx = -1;
+        for(int i=0; i < returned_algos; i++){
+            if(perfs_filter[i].algo == CUDNN_CONVOLUTION_BWD_FILTER_ALGO_1){
+                selected_algo_idx = i;
+                break;
+            }
+        }
+        assert(selected_algo_idx != -1);
+        bwd_filter_algo = perfs_filter[selected_algo_idx].algo;
+        if(perfs_filter[selected_algo_idx].status != CUDNN_STATUS_SUCCESS)
+            bwd_filter_algo_valid = false;
+#else
         bwd_filter_algo = perfs_filter[0].algo;
         if(perfs_filter[0].status != CUDNN_STATUS_SUCCESS)
             bwd_filter_algo_valid = false;
-
+#endif
         if(bwd_filter_algo_valid){
             CHECK_CUDNN(cudnnGetConvolutionBackwardFilterWorkspaceSize(dev_cuda->handle,
                 (const cudnnTensorDescriptor_t)input->desc,
