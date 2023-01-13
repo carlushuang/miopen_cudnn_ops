@@ -21,7 +21,6 @@ static const char * to_miopen_fwd_algo_name(miopenConvFwdAlgorithm_t fwd_algo){
         ALGO_CASE_STR(miopenConvolutionFwdAlgoFFT);
         ALGO_CASE_STR(miopenConvolutionFwdAlgoWinograd);
         ALGO_CASE_STR(miopenConvolutionFwdAlgoImplicitGEMM);
-        ALGO_CASE_STR(miopenConvolutionFwdAlgoStaticCompiledGEMM);
         default:
             return "N/A";
         break;
