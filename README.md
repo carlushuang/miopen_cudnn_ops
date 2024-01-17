@@ -171,6 +171,9 @@ miopen-hip/focal,now 3.00.0.60000-91~20.04 amd64 [installed,automatic]
 
 Note: It would seem that the pre-compiled kernels are already present but the compiler doesn't recognize the `-amdgpu-target` argument.
 
+Note: https://docs.amd.com/projects/MIOpen/en/latest/MIOpen_Porting_Guide.html
+- MIOpen only supports float(fp32) data-type.(?!)
+
 #### CMake
 
 `https://rocmdocs.amd.com/en/develop/conceptual/cmake-packages.html`
