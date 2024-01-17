@@ -171,8 +171,11 @@ miopen-hip/focal,now 3.00.0.60000-91~20.04 amd64 [installed,automatic]
 
 Note: It would seem that the pre-compiled kernels are already present but the compiler doesn't recognize the `-amdgpu-target` argument.
 
-Note: https://docs.amd.com/projects/MIOpen/en/latest/MIOpen_Porting_Guide.html
+Note: [MIOpen Porting Guide](https://docs.amd.com/projects/MIOpen/en/latest/MIOpen_Porting_Guide.html)
 - MIOpen only supports float(fp32) data-type.(?!)
+
+Note: [MIOpen Backend Limitations](https://rocm.docs.amd.com/projects/MIOpen/en/latest/find_and_immediate.html#backend-limitations)
+- Basically MIOpen HIP backend has to use rocBLAS for the datatypes it doesn't support natively.
 
 #### CMake
 
