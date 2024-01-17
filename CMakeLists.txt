@@ -40,8 +40,6 @@ endmacro()
 
 if(WITH_MIOPEN)
     message(STATUS "compile on miopen, amd platform")
-    set(ROCM_PATH /opt/rocm)
-    set(HIP_PATH ${ROCM_PATH})
 
     set(CMAKE_CXX_COMPILER ${HIP_PATH}/bin/hipcc)
     add_definitions(-DWITH_MIOPEN)
