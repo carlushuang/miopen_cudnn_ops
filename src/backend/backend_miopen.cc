@@ -92,20 +92,21 @@ device_hip::~device_hip(){
 
 double device_hip::get_theoretical_gflops(tensor_data_type data_type, int is_tensor_op)
 {
-    hipDeviceProp_t devProp;
-    hipGetDeviceProperties(&devProp, 0);
+    // hipDeviceProp_t devProp;
+    // hipGetDeviceProperties(&devProp, 0);
 
-    //std::cout << "Device name " << devProp.name << std::endl;
-    //std::cout << "GCN " << devProp.gcnArch << std::endl;
-    // TODO: hard code to gfx906, 60 CU
-    if(data_type == TENSOR_DT_FLOAT)
-    {
-        if(906 == devProp.gcnArch)
-            return 13.41 * 1000; 
-        else if(908 == devProp.gcnArch)
-            return 39.4 * 1000;
-    }
-    return 0;
+    // //std::cout << "Device name " << devProp.name << std::endl;
+    // //std::cout << "GCN " << devProp.gcnArch << std::endl;
+    // // TODO: hard code to gfx906, 60 CU
+    // if(data_type == TENSOR_DT_FLOAT)
+    // {
+    //     if(906 == devProp.gcnArch)
+    //         return 13.41 * 1000;
+    //     else if(908 == devProp.gcnArch)
+    //         return 39.4 * 1000;
+    // }
+
+    return 1.0;
 }
 device_timer_t * device_hip::device_timer_create(){
     device_timer_hip * dt = new device_timer_hip;
@@ -117,7 +118,7 @@ void device_hip::device_timer_destroy(device_timer_t * dt){
         return ;
     delete (device_timer_hip*)dt;
 }
-tensor_t * device_hip::tensor_create(size_t * dims, size_t n_dim, 
+tensor_t * device_hip::tensor_create(size_t * dims, size_t n_dim,
         tensor_data_type data_type, tensor_layout layout){
 
     if(n_dim == 1 && layout == TENSOR_LAYOUT_1D){
@@ -208,9 +209,9 @@ pooling_desc_t * device_hip::pooling_desc_create(int * kernel, int * stride, int
 
     pool_mode = to_miopen_pooling_mode(mode);
     CHECK_MIO(miopenCreatePoolingDescriptor(&desc));
-    CHECK_MIO(miopenSet2dPoolingDescriptor(desc, pool_mode, 
+    CHECK_MIO(miopenSet2dPoolingDescriptor(desc, pool_mode,
         kernel[0], kernel[1], padding[0], padding[1], stride[0], stride[1]));
-    
+
     pooling_desc_t *pooling_desc = new pooling_desc_t;
     pooling_desc->mode = mode;
     pooling_desc->n_dims = 2;
