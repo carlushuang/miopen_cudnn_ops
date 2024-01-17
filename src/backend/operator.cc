@@ -8,6 +8,8 @@
         else                                    \
             op = new op_name(desc);             \
     break;
+#define IGNORE_OP(op_type, op_name)             \
+    case op_type: break;
 #endif
 
 #ifdef WITH_CUDNN
@@ -18,14 +20,16 @@
         else                                    \
             op = new op_name(desc);             \
     break;
+#define IGNORE_OP(op_type, op_name)             \
+    case op_type: break;
 #endif
 
 operator_base * operator_create(device_base *device, operator_type op_type, void * desc){
     operator_base * op = nullptr;
     switch(op_type){
         DISPATCH_OP(OP_CONV, op_convolution)
-        // DISPATCH_OP(OP_POOLING, op_pooling)
-        // DISPATCH_OP(OP_ACTIVATION, op_activation)
+        IGNORE_OP(OP_POOLING, op_pooling)
+        IGNORE_OP(OP_ACTIVATION, op_activation)
     }
 
     if(op){
