@@ -626,7 +626,7 @@ static int conv_driver(int argc, char ** argv){
     int groups   = parser.get_arg_int("g");
     int dilation_h = parser.get_arg_int("l");
     int dilation_w = parser.get_arg_int("j");
-    int bias = parser.get_arg_int("b");
+    // int bias = parser.get_arg_int("b");
     std::string cmode = parser.get_arg("m");
     int fmode = parser.get_arg_int("F");
     int is_fwd = (fmode == 0 || fmode & 1) ? 1 : 0;
