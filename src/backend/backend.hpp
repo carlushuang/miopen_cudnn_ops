@@ -62,6 +62,7 @@ static inline std::string data_type_string(tensor_data_type dt){
 }
 
 enum tensor_layout{
+    TENSOR_LAYOUT_INVALID = -1,
     TENSOR_LAYOUT_1D = 0,
     TENSOR_LAYOUT_NCHW,
     TENSOR_LAYOUT_NHWC,
@@ -86,6 +87,7 @@ enum tensor_layout inline tensor_string_to_layout(std::string layout_str)
     if(layout_str == "NDHWC")
         return TENSOR_LAYOUT_NDHWC;
     assert(false);
+    return TENSOR_LAYOUT_INVALID;
 }
 
 std::string inline tensor_layout_to_string(enum tensor_layout layout)
@@ -99,6 +101,7 @@ std::string inline tensor_layout_to_string(enum tensor_layout layout)
     if(layout == TENSOR_LAYOUT_NDHWC)
         return "NDHWC";
     assert(false);
+    return "INVALID";
 }
 
 #define MAX_TENSOR_DIM 4
@@ -118,7 +121,7 @@ struct tensor_t{
         return e;
     }
 
-    tensor_data_type data_type; 
+    tensor_data_type data_type;
     tensor_layout    layout;
     void * desc ={nullptr};
     void * mem ={nullptr};
@@ -226,7 +229,7 @@ public:
     virtual void device_timer_destroy(device_timer_t * dt) = 0;
 
     // in gpu, not alloc memory at this stage. use tensor_alloc() to alloc device memory after created
-    virtual tensor_t * tensor_create(size_t * dims, size_t n_dim, 
+    virtual tensor_t * tensor_create(size_t * dims, size_t n_dim,
                     tensor_data_type data_type, tensor_layout layout)=0;
     virtual void tensor_alloc(tensor_t * tensor) = 0;
     virtual void tensor_copy(void *dest, void *src, size_t bytes, tensor_copy_kind copy_kind)=0;
@@ -343,7 +346,7 @@ public:
     virtual device_timer_t * device_timer_create();
     virtual void device_timer_destroy(device_timer_t * dt);
 
-    virtual tensor_t * tensor_create(size_t * dims, size_t n_dim, 
+    virtual tensor_t * tensor_create(size_t * dims, size_t n_dim,
                     tensor_data_type data_type, tensor_layout layout);
     virtual void tensor_alloc(tensor_t * tensor);
     virtual void tensor_copy(void *dest, void *src, size_t bytes, tensor_copy_kind copy_kind);
@@ -479,10 +482,10 @@ public:
 
     virtual double get_theoretical_gflops(tensor_data_type data_type, int is_tensor_op = 0);
 
-    virtual tensor_t * tensor_create(size_t * dims, size_t n_dim, 
+    virtual tensor_t * tensor_create(size_t * dims, size_t n_dim,
                     tensor_data_type data_type, tensor_layout layout);
 	/*
-    tensor_t * filter_create(size_t * dims, size_t n_dim, 
+    tensor_t * filter_create(size_t * dims, size_t n_dim,
                     tensor_data_type data_type, tensor_layout layout);
 					*/
     virtual void tensor_alloc(tensor_t * tensor);
@@ -515,7 +518,7 @@ public:
     virtual double get_theoretical_gflops(tensor_data_type data_type, int is_tensor_op = 0) {return 0;}
     virtual device_timer_t * device_timer_create(){return nullptr;}
     virtual void device_timer_destroy(device_timer_t * dt){}
-    virtual tensor_t * tensor_create(size_t * dims, size_t n_dim, 
+    virtual tensor_t * tensor_create(size_t * dims, size_t n_dim,
                     tensor_data_type data_type, tensor_layout layout);
     virtual void tensor_alloc(tensor_t * tensor);
     virtual void tensor_copy(void *dest, void *src, size_t bytes, tensor_copy_kind copy_kind);
@@ -588,7 +591,7 @@ void           device_destroy(device_base *handle);
 #define MIN(a,b) ((a)<(b)?(a):(b))
 #define MAX(a,b) ((a)>(b)?(a):(b))
 #define MAX_ERROR_PRINT 10
-static inline int util_compare_data(void * m1, void * m2, 
+static inline int util_compare_data(void * m1, void * m2,
         int elem, tensor_data_type type, float delta)
 {
     float *f1, *f2;
