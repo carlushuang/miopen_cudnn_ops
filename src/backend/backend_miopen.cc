@@ -10,7 +10,7 @@ static inline void dump_dev_prop(void * prop, int dev_id){
         return;
     hipDeviceProp_t *hip_prop = static_cast<hipDeviceProp_t*>(prop);
     LOG_I()<<"Device " << dev_id << ": " << hip_prop->name<<std::endl;
-    LOG_I()<<"\tArch:\t" << hip_prop->gcnArch<<std::endl;
+    LOG_I()<<"\tArch:\t" << "hip_prop->gcnArch"<<std::endl;
     LOG_I()<<"\tGMem:\t" << hip_prop->totalGlobalMem/1024/1024 << " MiB"<<std::endl;
     LOG_I()<<"\twarps:\t" << hip_prop->warpSize<<std::endl;
     LOG_I()<<"\tCUs:\t" << hip_prop->multiProcessorCount<<std::endl;
