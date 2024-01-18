@@ -177,6 +177,53 @@ Note: [MIOpen Porting Guide](https://docs.amd.com/projects/MIOpen/en/latest/MIOp
 Note: [MIOpen Backend Limitations](https://rocm.docs.amd.com/projects/MIOpen/en/latest/find_and_immediate.html#backend-limitations)
 - Basically MIOpen HIP backend has to use rocBLAS for the datatypes it doesn't support natively.
 
+
+#### Build fixed
+
+Successfully built and executed on MI300.
+
+The following configuration was run on both MI300 and H100 for reference:
+
+```bash
+# MI300
+$ ./op_driver conv -n 11 -c 192 -H 28 -W 28 -k 192 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -m conv -g 192 -F 1 -t 1
+MIOpen(HIP): Command [LogCmdFindConvolution] ./bin/MIOpenDriver conv -n 11 -c 192 -H 28 -W 28 -k 192 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -m conv -g 192 -F 1 -t 1
+./rocblas-bench -f gemm_strided_batched_ex --transposeA N --transposeB N -m 784 -n 1 -k 9 --alpha 1 --a_type f32_r --lda 784 --stride_a 7056 --b_type f32_r --ldb 9 --stride_b 9 --beta 0 --c_type f32_r --ldc 784 --stride_c 784 --d_type f32_r --ldd 784 --stride_d 784 --batch_count 192 --compute_type f32_r --algo 0 --solution_index 0 --flags 0
+./rocblas-bench -f gemm_strided_batched_ex --transposeA N --transposeB N -m 784 -n 1 -k 9 --alpha 1 --a_type f32_r --lda 784 --stride_a 7056 --b_type f32_r --ldb 9 --stride_b 9 --beta 0 --c_type f32_r --ldc 784 --stride_c 784 --d_type f32_r --ldd 784 --stride_d 784 --batch_count 192 --compute_type f32_r --algo 0 --solution_index 0 --flags 0
+MIOpen(HIP): Command [LogCmdConvolution] ./bin/MIOpenDriver conv -n 11 -c 192 -H 28 -W 28 -k 192 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -m conv -g 192 -F 1 -t 1
+MIOpen(HIP): Command [LogCmdConvolution] ./bin/MIOpenDriver conv -n 11 -c 192 -H 28 -W 28 -k 192 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -m conv -g 192 -F 1 -t 1
+MIOpen(HIP): Command [LogCmdConvolution] ./bin/MIOpenDriver conv -n 11 -c 192 -H 28 -W 28 -k 192 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -m conv -g 192 -F 1 -t 1
+MIOpen(HIP): Command [LogCmdConvolution] ./bin/MIOpenDriver conv -n 11 -c 192 -H 28 -W 28 -k 192 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -m conv -g 192 -F 1 -t 1
+MIOpen(HIP): Command [LogCmdConvolution] ./bin/MIOpenDriver conv -n 11 -c 192 -H 28 -W 28 -k 192 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -m conv -g 192 -F 1 -t 1
+MIOpen(HIP): Command [LogCmdConvolution] ./bin/MIOpenDriver conv -n 11 -c 192 -H 28 -W 28 -k 192 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -m conv -g 192 -F 1 -t 1
+MIOpen(HIP): Command [LogCmdConvolution] ./bin/MIOpenDriver conv -n 11 -c 192 -H 28 -W 28 -k 192 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -m conv -g 192 -F 1 -t 1
+MIOpen(HIP): Command [LogCmdConvolution] ./bin/MIOpenDriver conv -n 11 -c 192 -H 28 -W 28 -k 192 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -m conv -g 192 -F 1 -t 1
+MIOpen(HIP): Command [LogCmdConvolution] ./bin/MIOpenDriver conv -n 11 -c 192 -H 28 -W 28 -k 192 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -m conv -g 192 -F 1 -t 1
+MIOpen(HIP): Command [LogCmdConvolution] ./bin/MIOpenDriver conv -n 11 -c 192 -H 28 -W 28 -k 192 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -m conv -g 192 -F 1 -t 1
+MIOpen(HIP): Command [LogCmdConvolution] ./bin/MIOpenDriver conv -n 11 -c 192 -H 28 -W 28 -k 192 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -m conv -g 192 -F 1 -t 1
+MIOpen(HIP): Command [LogCmdConvolution] ./bin/MIOpenDriver conv -n 11 -c 192 -H 28 -W 28 -k 192 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -m conv -g 192 -F 1 -t 1
+MIOpen(HIP): Command [LogCmdConvolution] ./bin/MIOpenDriver conv -n 11 -c 192 -H 28 -W 28 -k 192 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -m conv -g 192 -F 1 -t 1
+OpDriver Forward Conv. Algorithm: miopenConvolutionFwdAlgoDirect.
+GPU Kernel Time Forward Conv. Elapsed: 0.033457 ms (average)
+stats: name, n, c, ho, wo, x, y, k, flopCnt, bytesRead, bytesWritten, GFLOPs, GB/s, timeMs
+stats: fwd-conv3x3, 11, 192, 28, 28, 3, 3, 192, 29804544, 6630144, 6623232, 891, 396, 0.033457
+Forward Convolution Verifies on CPU and GPU (0)
+```
+
+```bash
+# H100
+$ ./op_driver conv -n 11 -c 192 -H 28 -W 28 -k 192 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -m conv -g 192 -F 1 -t 1
+OpDriver Forward Conv. Algorithm: CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM.
+GPU Kernel Time Forward Conv. Elapsed: 0.015290 ms (average)
+stats: name, n, c, ho, wo, x, y, k, flopCnt, bytesRead, bytesWritten, GFLOPs, GB/s, timeMs
+stats: fwd-conv3x3, 11, 192, 28, 28, 3, 3, 192, 29804544, 6630144, 6623232, 1949, 867, 0.015290
+Forward Convolution Verifies on CPU and GPU (1.14143e-08)
+```
+
+Notes:
+- On MI300 the delta between the CPU and GPU results was 0.0 - that points to an issue in the code.
+- Remember that on the `miopen` path we've commented out the `get_theoretical_gflops` function which always returns `1.0` now, to be implemented in the future. As such the `GFLOP/s` may be incorrect for MI300 above.
+
 #### CMake
 
 `https://rocmdocs.amd.com/en/develop/conceptual/cmake-packages.html`
