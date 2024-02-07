@@ -16,7 +16,7 @@ latency that can be installed using `install_precompiled_kernels.sh`.
 $ ./build.sh miopen
 ```
 
-### Build on NVIDIA CUDA platform
+### Build on NVIDIA CUDA
 
 Please install CUDA to `/usr/local/cuda`, as well as `cuDNN`.
 
